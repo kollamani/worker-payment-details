@@ -1,10 +1,12 @@
 const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin');
 
-const MAX_USERS_ALLOWED = 2;
+// Testing కోసం User limit పెంచడం జరిగింది
+const MAX_USERS_ALLOWED = 1; 
 
 const signToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+  const secret = process.env.JWT_SECRET || 'fallback_secret_key_12345';
+  return jwt.sign({ id }, secret, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 };
@@ -40,21 +42,31 @@ const signup = async (req, res, next) => {
     if (currentCount >= MAX_USERS_ALLOWED) {
       return res.status(403).json({
         success: false,
-        message: 'Maximum user limit reached (Max 2 users allowed)',
+        message: 'Maximum user limit reached',
       });
     }
 
-    const existing = await Admin.findOne({ username: username.toLowerCase() });
+    const normalizedUsername = username.trim().toLowerCase();
+
+    const existing = await Admin.findOne({ username: normalizedUsername });
     if (existing) {
       return res.status(400).json({ success: false, message: 'Username already taken' });
     }
 
-    const admin = await Admin.create({ username, password, name });
+    const admin = await Admin.create({ 
+      username: normalizedUsername, 
+      password, 
+      name: name || username 
+    });
+
     const token = signToken(admin._id);
 
-    res.status(201).json({ success: true, token, admin: admin.toSafeObject() });
+    const safeAdmin = admin.toSafeObject ? admin.toSafeObject() : { _id: admin._id, username: admin.username, name: admin.name };
+
+    return res.status(201).json({ success: true, token, admin: safeAdmin });
   } catch (err) {
-    next(err);
+    console.error("Signup Error:", err);
+    return res.status(500).json({ success: false, message: err.message || 'Server Error' });
   }
 };
 
@@ -66,27 +78,33 @@ const login = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Username and password are required' });
     }
 
-    const admin = await Admin.findOne({ username: username.toLowerCase() });
+    const normalizedUsername = username.trim().toLowerCase();
+    const admin = await Admin.findOne({ username: normalizedUsername });
+    
     if (!admin) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials (User not found)' });
     }
 
     const isMatch = await admin.comparePassword(password);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials (Password Mismatch)' });
     }
 
     const token = signToken(admin._id);
-    res.status(200).json({ success: true, token, admin: admin.toSafeObject() });
+    const safeAdmin = admin.toSafeObject ? admin.toSafeObject() : { _id: admin._id, username: admin.username, name: admin.name };
+
+    return res.status(200).json({ success: true, token, admin: safeAdmin });
   } catch (err) {
-    next(err);
+    console.error("Login Error:", err);
+    return res.status(500).json({ success: false, message: err.message || 'Server Error' });
   }
 };
 
 // @route GET /api/auth/me
 const getMe = async (req, res, next) => {
   try {
-    res.status(200).json({ success: true, admin: req.admin.toSafeObject ? req.admin.toSafeObject() : req.admin });
+    const safeAdmin = req.admin.toSafeObject ? req.admin.toSafeObject() : req.admin;
+    res.status(200).json({ success: true, admin: safeAdmin });
   } catch (err) {
     next(err);
   }
