@@ -13,13 +13,31 @@ const app = express();
 // Connect to MongoDB
 connectDB();
 
-// Middleware
+// Allowed Origins List (Local & Production Vercel URL)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://worker-payment-details.vercel.app',
+  process.env.CLIENT_URL
+].filter(Boolean); // undefined విలువలను తొలగిస్తుంది
+
+// Updated CORS Middleware
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: function (origin, callback) {
+      // Postman లేదా Mobile Apps వంటి direct requests కోసం (!origin) అనుమతిస్తుంది
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('CORS Not Allowed'));
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
   })
 );
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
