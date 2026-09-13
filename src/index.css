@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Sticky first columns for the ledger table */
+.ledger-sticky-col {
+  position: sticky;
+  left: 0;
+  background: white;
+  z-index: 10;
+}
