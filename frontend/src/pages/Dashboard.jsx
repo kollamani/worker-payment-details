@@ -17,7 +17,7 @@ const Dashboard = () => {
   const [selectedWorker, setSelectedWorker] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [workers, setWorkers] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(today());
+  const [selectedDate, setSelectedDate] = useState('');
 
   const fetchGrid = async (village = selectedVillage, worker = selectedWorker) => {
     setLoading(true);
@@ -58,7 +58,9 @@ const Dashboard = () => {
   const filteredTransactions = transactions.filter((t) => {
     const transactionDate = new Date(t.date).toISOString().slice(0, 10);
     const memberId = String(t.member?._id || t.member || '');
-    return transactionDate === selectedDate && (visibleMemberIds.size === 0 || visibleMemberIds.has(memberId));
+    const matchesDate = !selectedDate || transactionDate === selectedDate;
+    const matchesMember = visibleMemberIds.size === 0 || visibleMemberIds.has(memberId);
+    return matchesDate && matchesMember;
   });
 
   const activeUserCount = new Set(
@@ -112,6 +114,13 @@ const Dashboard = () => {
       }
     : grid?.grandTotals || { totalDeposited: 0, totalWithdrawn: 0, pendingBalance: 0, halfAmount: 0 };
 
+  const clearAllFilters = () => {
+    setSelectedDate('');
+    setSelectedVillage('');
+    setSelectedWorker('');
+    setSearchTerm('');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -127,17 +136,25 @@ const Dashboard = () => {
               <input
                 type="date"
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value || today())}
+                onChange={(e) => setSelectedDate(e.target.value)}
                 className="border-0 bg-transparent text-sm text-gray-700 focus:outline-none"
               />
             </div>
 
             <button
               type="button"
-              onClick={() => setSelectedDate(today())}
+              onClick={() => setSelectedDate('')}
               className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
             >
-              Reset to Today
+              All Time
+            </button>
+
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+            >
+              Clear Filters
             </button>
 
             <button
@@ -171,6 +188,12 @@ const Dashboard = () => {
           </div>
         )}
 
+        {!loading && filteredTransactions.length === 0 && !selectedDate && (
+          <div className="mb-4 text-sm text-gray-600 bg-white border border-dashed border-gray-300 rounded-lg px-4 py-3">
+            No transactions found for the selected filters.
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-16 text-gray-500">Loading ledger sheet...</div>
         ) : (
@@ -192,11 +215,15 @@ const Dashboard = () => {
 
             <div className="mt-6 bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-gray-600 uppercase">Transactions for {selectedDate}</h2>
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  {selectedDate ? `Transactions for ${selectedDate}` : 'All Transactions'}
+                </h2>
               </div>
 
               {filteredTransactions.length === 0 ? (
-                <p className="text-sm text-gray-500">No transactions found for {selectedDate}.</p>
+                <p className="text-sm text-gray-500">
+                  {selectedDate ? `No transactions found for ${selectedDate}.` : 'No transactions found for the selected filters.'}
+                </p>
               ) : (
                 <div className="space-y-3">
                   {filteredTransactions
