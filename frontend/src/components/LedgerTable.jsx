@@ -21,6 +21,7 @@ const LedgerTable = ({
   setSelectedWorker,
   searchTerm,
   setSearchTerm,
+  selectedDate,
 }) => {
   const visibleRows = (rows || []).filter((row) => {
     const term = (searchTerm || '').trim().toLowerCase();
@@ -49,6 +50,14 @@ const LedgerTable = ({
   const emptyState = (!rows || rows.length === 0) && !selectedVillage && !searchTerm;
 
   if (emptyState) {
+    if (selectedDate) {
+      return (
+        <div className="text-center py-16 text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
+          No transactions found for {new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}.
+        </div>
+      );
+    }
+
     return (
       <div className="text-center py-16 text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
         No members or transactions yet. Add a member and record a transaction to see the ledger sheet.
