@@ -316,96 +316,68 @@ const UserDetail = () => {
                     </thead>
 
                     <tbody>
-                      {Object.entries(dateGroups)
-                        .sort((a, b) => new Date(b[0]) - new Date(a[0]))
-                        .map(([dateKey, group]) => (
-                          <React.Fragment key={dateKey}>
-                            <tr className="bg-gray-100">
-                              <td className="px-3 py-2 text-left align-middle font-semibold text-gray-700 border border-gray-200" colSpan={2}>
-                                {new Date(dateKey).toLocaleDateString('en-IN', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                })}
-                              </td>
-                              <td className="px-3 py-2 text-right align-middle font-semibold text-gray-800 border border-gray-200">
-                                {formatMoney(group.baseTotal)}
-                              </td>
-                              <td className="px-3 py-2 text-right align-middle font-semibold text-blue-700 border border-gray-200">
-                                {formatMoney(group.extraTotal)}
-                              </td>
-                              <td className="px-3 py-2 text-right align-middle font-semibold text-green-700 border border-gray-200">
-                                {formatMoney(group.grandTotal)}
-                              </td>
-                              <td className="px-3 py-2 text-right align-middle font-semibold text-indigo-700 border border-gray-200">
-                                {formatMoney(group.halfTotal)}
-                              </td>
-                              <td className="px-3 py-2 text-left align-middle font-medium text-gray-600 border border-gray-200" colSpan={2}>
-                                Daily subtotal
-                              </td>
-                            </tr>
+                      {filteredTimeline
+                        .slice()
+                        .sort((a, b) => new Date(b.date) - new Date(a.date))
+                        .map((t) => (
+                          <tr key={String(t._id || t.id)} className="bg-white">
+                            <td className="px-3 py-2 text-left align-middle text-gray-700 border border-gray-200">
+                              {new Date(t.date).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </td>
+                            <td className="px-3 py-2 text-left align-middle border border-gray-200">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                                  t.type === 'deposit'
+                                    ? 'bg-green-50 text-green-700'
+                                    : 'bg-amber-50 text-amber-700'
+                                }`}
+                              >
+                                {t.type === 'deposit' ? 'Deposit' : 'Withdrawal'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-right align-middle font-semibold text-gray-800 border border-gray-200 whitespace-nowrap">
+                              {formatMoney(t.amount)}
+                            </td>
+                            <td className="px-3 py-2 text-right align-middle text-blue-700 font-semibold border border-gray-200 whitespace-nowrap">
+                              {formatMoney(Number(t.extraFee || 0))}
+                            </td>
+                            <td className="px-3 py-2 text-right align-middle font-semibold text-green-700 border border-gray-200 whitespace-nowrap">
+                              {formatMoney(Number(t.amount || 0) / 2 + Number(t.extraFee || 0))}
+                            </td>
+                            <td className="px-3 py-2 text-right align-middle text-indigo-700 font-semibold border border-gray-200 whitespace-nowrap">
+                              {formatMoney(Number(t.amount || 0) / 2)}
+                            </td>
+                            <td className="px-3 py-2 text-left align-middle text-gray-600 border border-gray-200">
+                              {t.note || '—'}
+                            </td>
+                            <td className="px-3 py-2 text-center align-middle border border-gray-200">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(t)}
+                                  disabled={actionLoading[t.id] === 'edit' || actionLoading[t.id] === 'delete'}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                                >
+                                  <Pencil size={14} />
+                                  {actionLoading[t.id] === 'edit' ? 'Saving...' : 'Edit'}
+                                </button>
 
-                            {group.transactions.map((t) => (
-                              <tr key={t.id} className="bg-white">
-                                <td className="px-3 py-2 text-left align-middle text-gray-700 border border-gray-200">
-                                  {new Date(t.date).toLocaleDateString('en-IN', {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric',
-                                  })}
-                                </td>
-                                <td className="px-3 py-2 text-left align-middle border border-gray-200">
-                                  <span
-                                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                                      t.type === 'deposit'
-                                        ? 'bg-green-50 text-green-700'
-                                        : 'bg-amber-50 text-amber-700'
-                                    }`}
-                                  >
-                                    {t.type === 'deposit' ? 'Deposit' : 'Withdrawal'}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-right align-middle font-semibold text-gray-800 border border-gray-200 whitespace-nowrap">
-                                  {formatMoney(t.amount)}
-                                </td>
-                                <td className="px-3 py-2 text-right align-middle text-blue-700 font-semibold border border-gray-200 whitespace-nowrap">
-                                  {formatMoney(Number(t.extraFee || 0))}
-                                </td>
-                                <td className="px-3 py-2 text-right align-middle font-semibold text-green-700 border border-gray-200 whitespace-nowrap">
-                                  {formatMoney(Number(t.amount || 0) / 2 + Number(t.extraFee || 0))}
-                                </td>
-                                <td className="px-3 py-2 text-right align-middle text-indigo-700 font-semibold border border-gray-200 whitespace-nowrap">
-                                  {formatMoney(Number(t.amount || 0) / 2)}
-                                </td>
-                                <td className="px-3 py-2 text-left align-middle text-gray-600 border border-gray-200">
-                                  {t.note || '—'}
-                                </td>
-                                <td className="px-3 py-2 text-center align-middle border border-gray-200">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => openEditModal(t)}
-                                      disabled={actionLoading[t.id] === 'edit' || actionLoading[t.id] === 'delete'}
-                                      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
-                                    >
-                                      <Pencil size={14} />
-                                      {actionLoading[t.id] === 'edit' ? 'Saving...' : 'Edit'}
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => setTransactionToDelete(t)}
-                                      disabled={actionLoading[t.id] === 'edit' || actionLoading[t.id] === 'delete'}
-                                      className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
-                                    >
-                                      <Trash2 size={14} />
-                                      {actionLoading[t.id] === 'delete' ? 'Deleting...' : 'Delete'}
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </React.Fragment>
+                                <button
+                                  type="button"
+                                  onClick={() => setTransactionToDelete(t)}
+                                  disabled={actionLoading[t.id] === 'edit' || actionLoading[t.id] === 'delete'}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
+                                >
+                                  <Trash2 size={14} />
+                                  {actionLoading[t.id] === 'delete' ? 'Deleting...' : 'Delete'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
                         ))}
                     </tbody>
 
