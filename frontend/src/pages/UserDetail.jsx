@@ -159,7 +159,11 @@ const UserDetail = () => {
   };
 
   const sortedTimeline = data?.timeline ? [...data.timeline].sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
-  const filteredTimeline = sortedTimeline.filter((transaction) => {
+  const uniqueTimeline = Array.from(
+    new Map((sortedTimeline || []).map((transaction) => [String(transaction._id || transaction.id), transaction])).values()
+  );
+
+  const filteredTimeline = uniqueTimeline.filter((transaction) => {
     const transactionDate = new Date(transaction.date).toISOString().slice(0, 10);
 
     if (appliedDateFrom && transactionDate < appliedDateFrom) {
@@ -182,8 +186,8 @@ const UserDetail = () => {
     const extraFee = Number(transaction.extraFee || 0);
     acc[key].baseTotal += baseAmount;
     acc[key].extraTotal += extraFee;
-    acc[key].grandTotal += baseAmount + extraFee;
     acc[key].halfTotal += baseAmount / 2;
+    acc[key].grandTotal += baseAmount / 2 + extraFee;
     acc[key].transactions.push(transaction);
     return acc;
   }, {});
@@ -194,8 +198,8 @@ const UserDetail = () => {
       const extraFee = Number(transaction.extraFee || 0);
       acc.baseTotal += amount;
       acc.extraTotal += extraFee;
-      acc.grandTotal += amount + extraFee;
       acc.halfTotal += amount / 2;
+      acc.grandTotal += amount / 2 + extraFee;
       return acc;
     },
     { baseTotal: 0, extraTotal: 0, grandTotal: 0, halfTotal: 0 }
@@ -284,7 +288,12 @@ const UserDetail = () => {
               <MetricCard label="Filtered Grand Total" value={overallTotals.grandTotal} icon={Scale} color="red" />
             </div>
 
-            <h2 className="text-sm font-semibold text-gray-600 uppercase mb-3">Transaction History</h2>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-gray-600 uppercase">Transaction History</h2>
+              <span className="inline-flex items-center rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-200">
+                {appliedDateFrom || appliedDateTo ? `Showing ${filteredTimeline.length} transactions` : `Total Transactions: ${filteredTimeline.length}`}
+              </span>
+            </div>
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
               {filteredTimeline.length === 0 ? (
                 <p className="p-4 text-sm text-gray-500">
@@ -363,7 +372,7 @@ const UserDetail = () => {
                                   {formatMoney(Number(t.extraFee || 0))}
                                 </td>
                                 <td className="px-3 py-2 text-right align-middle font-semibold text-green-700 border border-gray-200 whitespace-nowrap">
-                                  {formatMoney(Number(t.amount || 0) + Number(t.extraFee || 0))}
+                                  {formatMoney(Number(t.amount || 0) / 2 + Number(t.extraFee || 0))}
                                 </td>
                                 <td className="px-3 py-2 text-right align-middle text-indigo-700 font-semibold border border-gray-200 whitespace-nowrap">
                                   {formatMoney(Number(t.amount || 0) / 2)}
@@ -418,7 +427,7 @@ const UserDetail = () => {
                           {formatMoney(overallTotals.halfTotal)}
                         </td>
                         <td className="px-3 py-3 text-left align-middle border border-gray-300" colSpan={2}>
-                          Base + Extra = {formatMoney(overallTotals.grandTotal)}
+                          Half + Extra = {formatMoney(overallTotals.grandTotal)}
                         </td>
                       </tr>
                     </tfoot>

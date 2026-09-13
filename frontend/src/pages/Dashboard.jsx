@@ -150,9 +150,10 @@ const Dashboard = () => {
         </div>
 
         {grid && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <MetricCard label="Active Users" value={selectedDateSummary.activeUsers} icon={Users} color="blue" />
             <MetricCard label="Deposits" value={selectedDateSummary.totalDeposited} icon={PiggyBank} color="green" />
+            <MetricCard label="Total Half Amount" value={selectedDateSummary.totalDeposited / 2} icon={Scale} color="blue" />
             <MetricCard label="Withdrawals" value={selectedDateSummary.totalWithdrawn} icon={ArrowDownCircle} color="green" />
             <MetricCard label="Net Balance" value={selectedDateSummary.netBalance} icon={Scale} color="red" />
           </div>
