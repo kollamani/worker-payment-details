@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Search, X } from 'lucide-react';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -15,6 +15,26 @@ const TransactionForm = ({ members, onSubmit }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+
+  const filteredMembers = members.filter((member) => {
+    const query = memberSearch.trim().toLowerCase();
+    if (!query) return true;
+
+    const searchableText = [
+      member.name,
+      member.phone,
+      member.email,
+      member.jNo,
+      member.userId,
+      member.id,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return searchableText.includes(query);
+  });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -81,19 +101,50 @@ const TransactionForm = ({ members, onSubmit }) => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Member</label>
-        <select
-          name="member"
-          value={form.member}
-          onChange={handleChange}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
-        >
-          <option value="">Select a member</option>
-          {members.map((m) => (
-            <option key={m._id} value={m._id}>
-              {m.jNo} — {m.name}
-            </option>
-          ))}
-        </select>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            placeholder="Search by name, phone, email or ID"
+            className="w-full border border-gray-300 rounded-lg pl-9 pr-9 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            aria-label="Search members"
+          />
+          {memberSearch && (
+            <button
+              type="button"
+              onClick={() => setMemberSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              aria-label="Clear member search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="mt-2">
+          <select
+            name="member"
+            value={form.member}
+            onChange={handleChange}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          >
+            <option value="">Select a member</option>
+            {filteredMembers.map((m) => (
+              <option key={m._id} value={m._id}>
+                {m.jNo} — {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {memberSearch && filteredMembers.length === 0 && (
+          <div className="mt-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-sm text-gray-500 text-center">
+            No users found
+          </div>
+        )}
       </div>
 
       <div>
