@@ -30,6 +30,7 @@ const UserDetail = () => {
     amount: '',
     note: '',
     villageName: '',
+    hasExtraFee: false,
   });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');

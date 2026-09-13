@@ -121,8 +121,8 @@ const getMemberSummary = async (req, res, next) => {
     const timeline = transactions.map((t) => {
       const extra = Number(t.extraFee || 0);
       totalExtraFees += extra;
-      if (t.type === 'deposit') totalDeposited += t.amount + extra;
-      if (t.type === 'withdrawal') totalWithdrawn += t.amount + extra;
+      if (t.type === 'deposit') totalDeposited += t.amount;
+      if (t.type === 'withdrawal') totalWithdrawn += t.amount;
       return {
         id: t._id,
         date: t.date,

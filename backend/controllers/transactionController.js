@@ -162,10 +162,9 @@ const getLedgerGrid = async (req, res, next) => {
     transactions.forEach((t) => {
       const mId = String(t.member);
       const dKey = toDateKey(t.date);
-      const feeValue = Number(t.extraFee || 0);
       if (!lookup[mId]) lookup[mId] = {};
       if (!lookup[mId][dKey]) lookup[mId][dKey] = { deposit: 0, withdrawal: 0 };
-      lookup[mId][dKey][t.type] += t.amount + feeValue;
+      lookup[mId][dKey][t.type] += Number(t.amount || 0);
     });
 
     const rows = members.map((m, idx) => {

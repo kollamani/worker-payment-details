@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { RefreshCw, PiggyBank, ArrowDownCircle, Scale, Users, CalendarDays } from 'lucide-react';
+import { RefreshCw, PiggyBank, ArrowDownCircle, Scale, Users, CalendarDays, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import Navbar from '../components/Navbar';
 import LedgerTable from '../components/LedgerTable';
 import MetricCard from '../components/MetricCard';
@@ -115,9 +116,8 @@ const Dashboard = () => {
     (acc, transaction) => {
       const amount = Number(transaction.amount || 0);
       const extra = Number(transaction.extraFee || 0);
-      const value = amount + extra;
-      if (transaction.type === 'deposit') acc.totalDeposited += value;
-      else if (transaction.type === 'withdrawal') acc.totalWithdrawn += value;
+      if (transaction.type === 'deposit') acc.totalDeposited += amount;
+      else if (transaction.type === 'withdrawal') acc.totalWithdrawn += amount;
       acc.totalExtraFees += extra;
       return acc;
     },
@@ -154,8 +154,7 @@ const Dashboard = () => {
         const cell = { deposit: 0, withdrawal: 0 };
         memberTransactions.forEach((transaction) => {
           if (toDateKey(transaction.date) !== dateKey) return;
-          const fee = Number(transaction.extraFee || 0);
-          const value = Number(transaction.amount || 0) + fee;
+          const value = Number(transaction.amount || 0);
           if (transaction.type === 'deposit') cell.deposit += value;
           if (transaction.type === 'withdrawal') cell.withdrawal += value;
         });
@@ -201,6 +200,84 @@ const Dashboard = () => {
 
   const hasDateRange = Boolean(dateFrom || dateTo);
   const hasSelectedFilters = Boolean(dateFrom || dateTo || selectedVillage || selectedWorker);
+
+  const formatExportDate = (value) => {
+    if (!value) return 'All';
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return 'All';
+    return `${String(date.getDate()).padStart(2, '0')}${date.toLocaleString('en-US', { month: 'short' })}`;
+  };
+
+  const exportFilteredTransactions = () => {
+    const exportSource = [...transactions]
+      .filter((transaction) => {
+        const memberId = String(transaction.member?._id || transaction.member || '');
+        if (!allMemberSet.has(memberId)) return false;
+
+        const dateKey = toDateKey(transaction.date);
+        if (!dateKey) return false;
+        if (dateFrom && dateKey < dateFrom) return false;
+        if (dateTo && dateKey > dateTo) return false;
+
+        if (!searchTerm) return true;
+
+        const memberName = transaction.member?.name || '';
+        const memberJNo = transaction.member?.jNo || '';
+        const villageName = transaction.member?.villageName || transaction.villageName || '';
+        const searchText = `${memberName} ${memberJNo} ${villageName}`.toLowerCase();
+        return searchText.includes(searchTerm.toLowerCase());
+      })
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const rows = exportSource.map((transaction) => {
+      const baseAmount = Number(transaction.amount || 0);
+      const extraFee = Number(transaction.extraFee || 0);
+      const halfAmount = baseAmount / 2;
+      const totalAmount = halfAmount + extraFee;
+
+      return {
+        Date: new Date(transaction.date).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        }),
+        'User Name': transaction.member?.name || '—',
+        Phone: transaction.member?.phone || '—',
+        Village: transaction.member?.villageName || transaction.villageName || '—',
+        Worker: transaction.member?.createdByWorker || '—',
+        Type: transaction.type === 'deposit' ? 'Deposit' : 'Withdrawal',
+        'Base Amount': Number(baseAmount.toFixed(2)),
+        'Extra Fee (+100)': Number(extraFee.toFixed(2)),
+        'Half Amount (50%)': Number(halfAmount.toFixed(2)),
+        'Total Amount': Number(totalAmount.toFixed(2)),
+        Status: transactionStatus === 'pending' ? 'Pending' : 'Completed',
+        Notes: transaction.note || '',
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{
+      Date: '',
+      'User Name': '',
+      Phone: '',
+      Village: '',
+      Worker: '',
+      Type: '',
+      'Base Amount': '',
+      'Extra Fee (+100)': '',
+      'Half Amount (50%)': '',
+      'Total Amount': '',
+      Status: '',
+      Notes: '',
+    }]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+
+    const fileName = dateFrom || dateTo
+      ? `Transactions_${formatExportDate(dateFrom || dateTo)}_to_${formatExportDate(dateTo || dateFrom)}.xlsx`
+      : 'All_Transactions.xlsx';
+
+    XLSX.writeFile(workbook, fileName);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -261,6 +338,14 @@ const Dashboard = () => {
               className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
             >
               Clear Filters
+            </button>
+
+            <button
+              type="button"
+              onClick={exportFilteredTransactions}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-xl"
+            >
+              <Download size={16} /> Export to Excel
             </button>
 
             <button
@@ -364,7 +449,7 @@ const Dashboard = () => {
                             {transaction.note ? ` • ${transaction.note}` : ''}
                           </p>
                           <p className="text-[11px] text-gray-500 mt-1">
-                            Base: ₹{Number(transaction.amount || 0).toLocaleString('en-IN')} • Extra: ₹{Number(transaction.extraFee || 0).toLocaleString('en-IN')} • Total: ₹{(Number(transaction.amount || 0) + Number(transaction.extraFee || 0)).toLocaleString('en-IN')}
+                            Base: ₹{Number(transaction.amount || 0).toLocaleString('en-IN')} • Extra: ₹{Number(transaction.extraFee || 0).toLocaleString('en-IN')} • Total: ₹{(Number(transaction.amount || 0) / 2 + Number(transaction.extraFee || 0)).toLocaleString('en-IN')}
                           </p>
                         </div>
                         <span
@@ -372,7 +457,7 @@ const Dashboard = () => {
                             transaction.type === 'deposit' ? 'text-green-700' : 'text-amber-700'
                           }`}
                         >
-                          {transaction.type === 'deposit' ? '+' : '-'}₹{(Number(transaction.amount || 0) + Number(transaction.extraFee || 0)).toLocaleString('en-IN')}
+                          {transaction.type === 'deposit' ? '+' : '-'}₹{(Number(transaction.amount || 0) / 2 + Number(transaction.extraFee || 0)).toLocaleString('en-IN')}
                         </span>
                       </div>
                     ))}
