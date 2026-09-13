@@ -53,7 +53,7 @@ const LedgerTable = ({
     if (selectedDate) {
       return (
         <div className="text-center py-16 text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
-          No transactions found for {new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}.
+          No user activity or transactions found for {new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}.
         </div>
       );
     }

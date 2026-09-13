@@ -73,20 +73,25 @@ const Dashboard = () => {
 
   const filteredRows =
     grid && selectedDate
-      ? (grid.rows || []).map((row) => {
-          const cell = row.cells?.[selectedDate] || { deposit: 0, withdrawal: 0 };
-          const totalDeposited = Number(cell.deposit || 0);
-          const totalWithdrawn = Number(cell.withdrawal || 0);
+      ? (grid.rows || [])
+          .map((row) => {
+            const cell = row.cells?.[selectedDate] || { deposit: 0, withdrawal: 0 };
+            const totalDeposited = Number(cell.deposit || 0);
+            const totalWithdrawn = Number(cell.withdrawal || 0);
 
-          return {
-            ...row,
-            cells: { [selectedDate]: cell },
-            totalDeposited,
-            totalWithdrawn,
-            halfAmount: totalDeposited / 2,
-            pendingBalance: totalDeposited - totalWithdrawn,
-          };
-        })
+            return {
+              ...row,
+              cells: { [selectedDate]: cell },
+              totalDeposited,
+              totalWithdrawn,
+              halfAmount: totalDeposited / 2,
+              pendingBalance: totalDeposited - totalWithdrawn,
+            };
+          })
+          .filter((row) => {
+            const totalForDate = Number(row.totalDeposited || 0) + Number(row.totalWithdrawn || 0);
+            return totalForDate > 0;
+          })
       : grid?.rows || [];
 
   const filteredGrandTotals = selectedDate
