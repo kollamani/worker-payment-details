@@ -27,6 +27,11 @@ const TransactionSchema = new mongoose.Schema(
       required: [true, 'Amount is required'],
       min: [0.01, 'Amount must be greater than 0'],
     },
+    extraFee: {
+      type: Number,
+      default: 0,
+      min: [0, 'Extra fee cannot be negative'],
+    },
     note: {
       type: String,
       trim: true,

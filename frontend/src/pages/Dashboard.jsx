@@ -53,21 +53,30 @@ const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVillage, selectedWorker]);
 
+  const visibleMemberIds = new Set((grid?.rows || []).map((row) => String(row.memberId || row._id)));
+
   const filteredTransactions = transactions.filter((t) => {
     const transactionDate = new Date(t.date).toISOString().slice(0, 10);
-    return transactionDate === selectedDate;
+    const memberId = String(t.member?._id || t.member || '');
+    return transactionDate === selectedDate && (visibleMemberIds.size === 0 || visibleMemberIds.has(memberId));
   });
+
+  const activeUserCount = new Set(
+    filteredTransactions.map((transaction) => String(transaction.member?._id || transaction.member || ''))
+  ).size;
 
   const selectedDateSummary = filteredTransactions.reduce(
     (acc, transaction) => {
+      const fee = Number(transaction.extraFee || 0);
+      const effectiveValue = Number(transaction.amount || 0) + fee;
       if (transaction.type === 'deposit') {
-        acc.totalDeposited += Number(transaction.amount || 0);
+        acc.totalDeposited += effectiveValue;
       } else if (transaction.type === 'withdrawal') {
-        acc.totalWithdrawn += Number(transaction.amount || 0);
+        acc.totalWithdrawn += effectiveValue;
       }
       return acc;
     },
-    { totalDeposited: 0, totalWithdrawn: 0, totalTransactions: filteredTransactions.length }
+    { totalDeposited: 0, totalWithdrawn: 0, totalTransactions: filteredTransactions.length, activeUsers: activeUserCount }
   );
   selectedDateSummary.netBalance = selectedDateSummary.totalDeposited - selectedDateSummary.totalWithdrawn;
 
@@ -142,7 +151,7 @@ const Dashboard = () => {
 
         {grid && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <MetricCard label="Transactions" value={selectedDateSummary.totalTransactions} icon={Users} color="blue" />
+            <MetricCard label="Active Users" value={selectedDateSummary.activeUsers} icon={Users} color="blue" />
             <MetricCard label="Deposits" value={selectedDateSummary.totalDeposited} icon={PiggyBank} color="green" />
             <MetricCard label="Withdrawals" value={selectedDateSummary.totalWithdrawn} icon={ArrowDownCircle} color="green" />
             <MetricCard label="Net Balance" value={selectedDateSummary.netBalance} icon={Scale} color="red" />
@@ -210,13 +219,16 @@ const Dashboard = () => {
                             })}
                             {transaction.note ? ` • ${transaction.note}` : ''}
                           </p>
+                          <p className="text-[11px] text-gray-500 mt-1">
+                            Base: ₹{Number(transaction.amount || 0).toLocaleString('en-IN')} • Extra: ₹{Number(transaction.extraFee || 0).toLocaleString('en-IN')} • Total: ₹{(Number(transaction.amount || 0) + Number(transaction.extraFee || 0)).toLocaleString('en-IN')}
+                          </p>
                         </div>
                         <span
                           className={`text-sm font-semibold ${
                             transaction.type === 'deposit' ? 'text-green-700' : 'text-amber-700'
                           }`}
                         >
-                          {transaction.type === 'deposit' ? '+' : '-'}₹{Number(transaction.amount || 0).toLocaleString('en-IN')}
+                          {transaction.type === 'deposit' ? '+' : '-'}₹{(Number(transaction.amount || 0) + Number(transaction.extraFee || 0)).toLocaleString('en-IN')}
                         </span>
                       </div>
                     ))}

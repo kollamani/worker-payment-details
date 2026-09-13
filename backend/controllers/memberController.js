@@ -116,15 +116,19 @@ const getMemberSummary = async (req, res, next) => {
 
     let totalDeposited = 0;
     let totalWithdrawn = 0;
+    let totalExtraFees = 0;
 
     const timeline = transactions.map((t) => {
-      if (t.type === 'deposit') totalDeposited += t.amount;
-      if (t.type === 'withdrawal') totalWithdrawn += t.amount;
+      const extra = Number(t.extraFee || 0);
+      totalExtraFees += extra;
+      if (t.type === 'deposit') totalDeposited += t.amount + extra;
+      if (t.type === 'withdrawal') totalWithdrawn += t.amount + extra;
       return {
         id: t._id,
         date: t.date,
         type: t.type,
         amount: t.amount,
+        extraFee: extra,
         note: t.note,
         villageName: t.villageName,
       };
@@ -141,6 +145,7 @@ const getMemberSummary = async (req, res, next) => {
         halfAmount,
         totalWithdrawn,
         pendingBalance,
+        totalExtraFees,
       },
       timeline,
     });

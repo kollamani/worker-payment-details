@@ -11,6 +11,7 @@ const TransactionForm = ({ members, onSubmit }) => {
     type: 'deposit',
     amount: '',
     note: '',
+    hasExtraFee: false,
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -37,7 +38,7 @@ const TransactionForm = ({ members, onSubmit }) => {
   });
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     if (name === 'member') {
       const selectedMember = members.find((m) => m._id === value);
       setForm({
@@ -45,6 +46,11 @@ const TransactionForm = ({ members, onSubmit }) => {
         member: value,
         villageName: selectedMember?.villageName || '',
       });
+      return;
+    }
+
+    if (type === 'checkbox') {
+      setForm({ ...form, [name]: checked });
       return;
     }
 
@@ -71,6 +77,7 @@ const TransactionForm = ({ members, onSubmit }) => {
         ...form,
         villageName: form.villageName || members.find((m) => m._id === form.member)?.villageName || '',
         amount: Number(form.amount),
+        extraFee: form.hasExtraFee ? 100 : 0,
       });
       setSuccess('Transaction recorded successfully!');
       setForm({
@@ -80,6 +87,7 @@ const TransactionForm = ({ members, onSubmit }) => {
         type: 'deposit',
         amount: '',
         note: '',
+        hasExtraFee: false,
       });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to record transaction');
@@ -210,6 +218,25 @@ const TransactionForm = ({ members, onSubmit }) => {
             <ArrowUpCircle size={16} /> Withdrawal / Received
           </button>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+        <div>
+          <p className="text-sm font-medium text-gray-700">Add +₹100 Extra Fee?</p>
+          <p className="text-xs text-gray-500">Optional charge for this entry</p>
+        </div>
+
+        <label className="relative inline-flex cursor-pointer items-center">
+          <input
+            type="checkbox"
+            name="hasExtraFee"
+            checked={form.hasExtraFee}
+            onChange={handleChange}
+            className="sr-only peer"
+          />
+          <span className="h-6 w-11 rounded-full bg-gray-200 peer-checked:bg-brand-600 transition-colors duration-200 peer-focus:outline-none" />
+          <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5" />
+        </label>
       </div>
 
       <div>

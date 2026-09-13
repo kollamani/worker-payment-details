@@ -39,7 +39,7 @@ const getTransactions = async (req, res, next) => {
 // @route POST /api/transactions
 const createTransaction = async (req, res, next) => {
   try {
-    const { member, date, type, amount, note, villageName } = req.body;
+    const { member, date, type, amount, note, villageName, extraFee } = req.body;
 
     if (!member || !date || !type || amount === undefined) {
       return res.status(400).json({
@@ -56,6 +56,11 @@ const createTransaction = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Amount must be greater than 0' });
     }
 
+    const feeValue = Number(extraFee || 0);
+    if (!Number.isFinite(feeValue) || feeValue < 0) {
+      return res.status(400).json({ success: false, message: 'Extra fee must be zero or a positive number' });
+    }
+
     const memberExists = await Member.findOne(buildMemberQuery(req, { _id: member }));
     if (!memberExists) {
       return res.status(404).json({ success: false, message: 'Member not found' });
@@ -68,6 +73,7 @@ const createTransaction = async (req, res, next) => {
       date,
       type,
       amount,
+      extraFee: feeValue,
       note: note || '',
       createdBy: req.admin._id,
     });
@@ -82,7 +88,7 @@ const createTransaction = async (req, res, next) => {
 // @route PUT /api/transactions/:id
 const updateTransaction = async (req, res, next) => {
   try {
-    const { date, type, amount, note, villageName } = req.body;
+    const { date, type, amount, note, villageName, extraFee } = req.body;
 
     const transaction = await Transaction.findOne(buildTransactionQuery(req, { _id: req.params.id }));
     if (!transaction) {
@@ -94,6 +100,13 @@ const updateTransaction = async (req, res, next) => {
     }
     if (amount !== undefined && Number(amount) <= 0) {
       return res.status(400).json({ success: false, message: 'Amount must be greater than 0' });
+    }
+    if (extraFee !== undefined) {
+      const feeValue = Number(extraFee || 0);
+      if (!Number.isFinite(feeValue) || feeValue < 0) {
+        return res.status(400).json({ success: false, message: 'Extra fee must be zero or a positive number' });
+      }
+      transaction.extraFee = feeValue;
     }
 
     if (date !== undefined) transaction.date = date;
@@ -149,9 +162,10 @@ const getLedgerGrid = async (req, res, next) => {
     transactions.forEach((t) => {
       const mId = String(t.member);
       const dKey = toDateKey(t.date);
+      const feeValue = Number(t.extraFee || 0);
       if (!lookup[mId]) lookup[mId] = {};
       if (!lookup[mId][dKey]) lookup[mId][dKey] = { deposit: 0, withdrawal: 0 };
-      lookup[mId][dKey][t.type] += t.amount;
+      lookup[mId][dKey][t.type] += t.amount + feeValue;
     });
 
     const rows = members.map((m, idx) => {

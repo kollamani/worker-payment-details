@@ -31,6 +31,10 @@ const UserDetail = () => {
     note: '',
     villageName: '',
   });
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [appliedDateFrom, setAppliedDateFrom] = useState('');
+  const [appliedDateTo, setAppliedDateTo] = useState('');
   const [editingError, setEditingError] = useState('');
   const [actionLoading, setActionLoading] = useState({});
 
@@ -80,6 +84,7 @@ const UserDetail = () => {
       amount: transaction.amount ?? '',
       note: transaction.note || '',
       villageName: transaction.villageName || data?.member?.villageName || '',
+      hasExtraFee: Number(transaction.extraFee || 0) > 0,
     });
   };
 
@@ -112,6 +117,7 @@ const UserDetail = () => {
         date: editingForm.date,
         type: editingForm.type,
         amount: Number(editingForm.amount),
+        extraFee: editingForm.hasExtraFee ? 100 : 0,
         note: editingForm.note || '',
         villageName: editingForm.villageName || data?.member?.villageName || '',
       });
@@ -123,6 +129,7 @@ const UserDetail = () => {
         amount: '',
         note: '',
         villageName: '',
+        hasExtraFee: false,
       });
       await fetchSummary();
     } catch (err) {
@@ -135,6 +142,64 @@ const UserDetail = () => {
       });
     }
   };
+
+  const formatMoney = (value) =>
+    `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const applyDateFilter = () => {
+    setAppliedDateFrom(dateFrom);
+    setAppliedDateTo(dateTo);
+  };
+
+  const clearDateFilter = () => {
+    setDateFrom('');
+    setDateTo('');
+    setAppliedDateFrom('');
+    setAppliedDateTo('');
+  };
+
+  const sortedTimeline = data?.timeline ? [...data.timeline].sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
+  const filteredTimeline = sortedTimeline.filter((transaction) => {
+    const transactionDate = new Date(transaction.date).toISOString().slice(0, 10);
+
+    if (appliedDateFrom && transactionDate < appliedDateFrom) {
+      return false;
+    }
+
+    if (appliedDateTo && transactionDate > appliedDateTo) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const dateGroups = filteredTimeline.reduce((acc, transaction) => {
+    const key = new Date(transaction.date).toISOString().slice(0, 10);
+    if (!acc[key]) {
+      acc[key] = { baseTotal: 0, extraTotal: 0, grandTotal: 0, halfTotal: 0, transactions: [] };
+    }
+    const baseAmount = Number(transaction.amount || 0);
+    const extraFee = Number(transaction.extraFee || 0);
+    acc[key].baseTotal += baseAmount;
+    acc[key].extraTotal += extraFee;
+    acc[key].grandTotal += baseAmount + extraFee;
+    acc[key].halfTotal += baseAmount / 2;
+    acc[key].transactions.push(transaction);
+    return acc;
+  }, {});
+
+  const overallTotals = filteredTimeline.reduce(
+    (acc, transaction) => {
+      const amount = Number(transaction.amount || 0);
+      const extraFee = Number(transaction.extraFee || 0);
+      acc.baseTotal += amount;
+      acc.extraTotal += extraFee;
+      acc.grandTotal += amount + extraFee;
+      acc.halfTotal += amount / 2;
+      return acc;
+    },
+    { baseTotal: 0, extraTotal: 0, grandTotal: 0, halfTotal: 0 }
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -168,78 +233,197 @@ const UserDetail = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <MetricCard label="Total Amount" value={data.summary.totalDeposited} icon={PiggyBank} color="green" />
-              <MetricCard label="Half Value" value={data.summary.halfAmount} icon={Scale} color="blue" />
-              <MetricCard label="Total Received" value={data.summary.totalWithdrawn} icon={ArrowDownCircle} color="green" />
-              <MetricCard label="Net Pending" value={data.summary.pendingBalance} icon={Scale} color="red" />
+            <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-600 uppercase mb-2">Filter transactions by date range</h2>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">From Date</label>
+                      <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">To Date</label>
+                      <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex items-end gap-2">
+                      <button
+                        type="button"
+                        onClick={applyDateFilter}
+                        className="flex-1 rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-brand-700"
+                      >
+                        Filter
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearDateFilter}
+                        className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <h2 className="text-sm font-semibold text-gray-600 uppercase mb-3">Ledger Timeline</h2>
-            <div className="bg-white rounded-xl border border-gray-200 divide-y">
-              {data.timeline.length === 0 ? (
-                <p className="p-4 text-sm text-gray-500">No transactions recorded for this member yet.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <MetricCard label="Filtered Base" value={overallTotals.baseTotal} icon={PiggyBank} color="green" />
+              <MetricCard label="Filtered Half" value={overallTotals.halfTotal} icon={Scale} color="blue" />
+              <MetricCard label="Filtered Extra Fee" value={overallTotals.extraTotal} icon={ArrowDownCircle} color="green" />
+              <MetricCard label="Filtered Grand Total" value={overallTotals.grandTotal} icon={Scale} color="red" />
+            </div>
+
+            <h2 className="text-sm font-semibold text-gray-600 uppercase mb-3">Transaction History</h2>
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+              {filteredTimeline.length === 0 ? (
+                <p className="p-4 text-sm text-gray-500">
+                  {sortedTimeline.length === 0 ? 'No transactions recorded for this member yet.' : 'No transactions found for the selected date range.'}
+                </p>
               ) : (
-                data.timeline
-                  .slice()
-                  .reverse()
-                  .map((t) => (
-                    <div key={t.id} className="flex items-center justify-between gap-4 p-4">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div
-                          className={`p-2 rounded-full ${
-                            t.type === 'deposit' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-                          }`}
-                        >
-                          {t.type === 'deposit' ? <ArrowDownCircle size={18} /> : <ArrowUpCircle size={18} />}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-800">
-                            {t.type === 'deposit' ? 'Deposit' : 'Received / Withdrawal'}
-                          </p>
-                          <p className="text-xs text-gray-500 truncate">
-                            {new Date(t.date).toLocaleDateString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
-                            {t.villageName && ` • Village: ${t.villageName}`}
-                            {t.note && ` — ${t.note}`}
-                          </p>
-                        </div>
-                      </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full table-fixed border-collapse text-sm">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-blue-700 text-white text-xs uppercase tracking-wide">
+                        <th className="px-3 py-3 text-left font-bold min-w-[120px] border border-blue-800">Date</th>
+                        <th className="px-3 py-3 text-left font-bold min-w-[120px] border border-blue-800">Type</th>
+                        <th className="px-3 py-3 text-right font-bold min-w-[140px] border border-blue-800">Base Amount</th>
+                        <th className="px-3 py-3 text-right font-bold min-w-[140px] border border-blue-800">Extra Fee</th>
+                        <th className="px-3 py-3 text-right font-bold min-w-[140px] border border-blue-800">Total Amount</th>
+                        <th className="px-3 py-3 text-right font-bold min-w-[140px] border border-blue-800">Half Amount</th>
+                        <th className="px-3 py-3 text-left font-bold min-w-[180px] border border-blue-800">Note</th>
+                        <th className="px-3 py-3 text-center font-bold min-w-[150px] border border-blue-800">Actions</th>
+                      </tr>
+                    </thead>
 
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-sm font-semibold ${
-                            t.type === 'deposit' ? 'text-green-700' : 'text-amber-700'
-                          }`}
-                        >
-                          {t.type === 'deposit' ? '+' : '-'}₹{t.amount.toLocaleString('en-IN')}
-                        </span>
+                    <tbody>
+                      {Object.entries(dateGroups)
+                        .sort((a, b) => new Date(b[0]) - new Date(a[0]))
+                        .map(([dateKey, group]) => (
+                          <React.Fragment key={dateKey}>
+                            <tr className="bg-gray-100">
+                              <td className="px-3 py-2 text-left align-middle font-semibold text-gray-700 border border-gray-200" colSpan={2}>
+                                {new Date(dateKey).toLocaleDateString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </td>
+                              <td className="px-3 py-2 text-right align-middle font-semibold text-gray-800 border border-gray-200">
+                                {formatMoney(group.baseTotal)}
+                              </td>
+                              <td className="px-3 py-2 text-right align-middle font-semibold text-blue-700 border border-gray-200">
+                                {formatMoney(group.extraTotal)}
+                              </td>
+                              <td className="px-3 py-2 text-right align-middle font-semibold text-green-700 border border-gray-200">
+                                {formatMoney(group.grandTotal)}
+                              </td>
+                              <td className="px-3 py-2 text-right align-middle font-semibold text-indigo-700 border border-gray-200">
+                                {formatMoney(group.halfTotal)}
+                              </td>
+                              <td className="px-3 py-2 text-left align-middle font-medium text-gray-600 border border-gray-200" colSpan={2}>
+                                Daily subtotal
+                              </td>
+                            </tr>
 
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(t)}
-                          disabled={actionLoading[t.id] === 'edit' || actionLoading[t.id] === 'delete'}
-                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
-                        >
-                          <Pencil size={14} />
-                          {actionLoading[t.id] === 'edit' ? 'Saving...' : 'Edit'}
-                        </button>
+                            {group.transactions.map((t) => (
+                              <tr key={t.id} className="bg-white">
+                                <td className="px-3 py-2 text-left align-middle text-gray-700 border border-gray-200">
+                                  {new Date(t.date).toLocaleDateString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })}
+                                </td>
+                                <td className="px-3 py-2 text-left align-middle border border-gray-200">
+                                  <span
+                                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                                      t.type === 'deposit'
+                                        ? 'bg-green-50 text-green-700'
+                                        : 'bg-amber-50 text-amber-700'
+                                    }`}
+                                  >
+                                    {t.type === 'deposit' ? 'Deposit' : 'Withdrawal'}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right align-middle font-semibold text-gray-800 border border-gray-200 whitespace-nowrap">
+                                  {formatMoney(t.amount)}
+                                </td>
+                                <td className="px-3 py-2 text-right align-middle text-blue-700 font-semibold border border-gray-200 whitespace-nowrap">
+                                  {formatMoney(Number(t.extraFee || 0))}
+                                </td>
+                                <td className="px-3 py-2 text-right align-middle font-semibold text-green-700 border border-gray-200 whitespace-nowrap">
+                                  {formatMoney(Number(t.amount || 0) + Number(t.extraFee || 0))}
+                                </td>
+                                <td className="px-3 py-2 text-right align-middle text-indigo-700 font-semibold border border-gray-200 whitespace-nowrap">
+                                  {formatMoney(Number(t.amount || 0) / 2)}
+                                </td>
+                                <td className="px-3 py-2 text-left align-middle text-gray-600 border border-gray-200">
+                                  {t.note || '—'}
+                                </td>
+                                <td className="px-3 py-2 text-center align-middle border border-gray-200">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditModal(t)}
+                                      disabled={actionLoading[t.id] === 'edit' || actionLoading[t.id] === 'delete'}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                                    >
+                                      <Pencil size={14} />
+                                      {actionLoading[t.id] === 'edit' ? 'Saving...' : 'Edit'}
+                                    </button>
 
-                        <button
-                          type="button"
-                          onClick={() => setTransactionToDelete(t)}
-                          disabled={actionLoading[t.id] === 'edit' || actionLoading[t.id] === 'delete'}
-                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
-                        >
-                          <Trash2 size={14} />
-                          {actionLoading[t.id] === 'delete' ? 'Deleting...' : 'Delete'}
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                                    <button
+                                      type="button"
+                                      onClick={() => setTransactionToDelete(t)}
+                                      disabled={actionLoading[t.id] === 'edit' || actionLoading[t.id] === 'delete'}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
+                                    >
+                                      <Trash2 size={14} />
+                                      {actionLoading[t.id] === 'delete' ? 'Deleting...' : 'Delete'}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </React.Fragment>
+                        ))}
+                    </tbody>
+
+                    <tfoot>
+                      <tr className="bg-gray-100 font-semibold border-t-2 border-gray-300">
+                        <td className="px-3 py-3 text-left align-middle font-bold border border-gray-300" colSpan={2}>
+                          Overall Total
+                        </td>
+                        <td className="px-3 py-3 text-right align-middle border border-gray-300 whitespace-nowrap text-gray-800">
+                          {formatMoney(overallTotals.baseTotal)}
+                        </td>
+                        <td className="px-3 py-3 text-right align-middle border border-gray-300 whitespace-nowrap text-blue-700">
+                          {formatMoney(overallTotals.extraTotal)}
+                        </td>
+                        <td className="px-3 py-3 text-right align-middle border border-gray-300 whitespace-nowrap text-green-700">
+                          {formatMoney(overallTotals.grandTotal)}
+                        </td>
+                        <td className="px-3 py-3 text-right align-middle border border-gray-300 whitespace-nowrap text-indigo-700">
+                          {formatMoney(overallTotals.halfTotal)}
+                        </td>
+                        <td className="px-3 py-3 text-left align-middle border border-gray-300" colSpan={2}>
+                          Base + Extra = {formatMoney(overallTotals.grandTotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               )}
             </div>
           </>
@@ -312,6 +496,25 @@ const UserDetail = () => {
                     <option value="deposit">Deposit</option>
                     <option value="withdrawal">Withdrawal / Received</option>
                   </select>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Add +₹100 Extra Fee?</p>
+                    <p className="text-xs text-gray-500">Optional charge for this entry</p>
+                  </div>
+
+                  <label className="relative inline-flex cursor-pointer items-center">
+                    <input
+                      type="checkbox"
+                      name="hasExtraFee"
+                      checked={!!editingForm.hasExtraFee}
+                      onChange={(e) => setEditingForm((prev) => ({ ...prev, hasExtraFee: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <span className="h-6 w-11 rounded-full bg-gray-200 peer-checked:bg-brand-600 transition-colors duration-200 peer-focus:outline-none" />
+                    <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5" />
+                  </label>
                 </div>
 
                 <div>
