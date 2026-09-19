@@ -7,7 +7,7 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 const authRoutes = require('./routes/auth');
 const memberRoutes = require('./routes/members');
 const transactionRoutes = require('./routes/transactions');
-const taskNoteRoutes = require('./routes/taskNoteRoutes');
+const taskNoteRoutes = require('./routes/task-notes');
 
 const app = express();
 
