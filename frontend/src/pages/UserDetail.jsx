@@ -15,6 +15,7 @@ import Navbar from '../components/Navbar';
 import MetricCard from '../components/MetricCard';
 import ConfirmModal from '../components/ConfirmModal';
 import api from '../api/axios';
+import { useToast } from '../context/ToastContext';
 import { formatUtcDateDisplay, toUtcDateKey } from '../utils/dates';
 
 const HistoryActions = ({ transaction, actionLoading, onEdit, onDelete }) => (
@@ -203,6 +204,7 @@ const TransactionHistoryTables = ({
 
 const UserDetail = () => {
   const { id } = useParams();
+  const { showToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -250,10 +252,13 @@ const UserDetail = () => {
     try {
       await api.delete(`/transactions/${transactionToDelete.id}`);
       setSuccess('Transaction deleted successfully.');
+      showToast('Transaction deleted successfully.', 'success', 'Transaction Deleted');
       setTransactionToDelete(null);
       await fetchSummary();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete transaction');
+      const message = err.response?.data?.message || 'Failed to delete transaction';
+      setError(message);
+      showToast(`Failed to delete transaction: ${message}`, 'error', 'Action Failed');
     } finally {
       setActionLoading((prev) => {
         const next = { ...prev };
@@ -290,8 +295,11 @@ const UserDetail = () => {
       );
       setDeleteAllOpen(false);
       setSuccess('All transactions deleted successfully.');
+      showToast('All transactions deleted successfully.', 'success', 'Transactions Deleted');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete all transactions');
+      const message = err.response?.data?.message || 'Failed to delete all transactions';
+      setError(message);
+      showToast(`Failed to delete all transactions: ${message}`, 'error', 'Action Failed');
       setDeleteAllOpen(false);
     } finally {
       setActionLoading((prev) => {
@@ -350,6 +358,15 @@ const UserDetail = () => {
         villageName: editingForm.villageName || data?.member?.villageName || '',
       });
       setSuccess('Transaction updated successfully.');
+      if (editingForm.hasExtraFee && Number(editingForm.extraFee) > 0) {
+        showToast(
+          `Extra fee of ₹${Number(editingForm.extraFee).toLocaleString('en-IN')} updated successfully!`,
+          'success',
+          'Extra Fee Updated'
+        );
+      } else {
+        showToast('Transaction updated successfully.', 'success', 'Transaction Updated');
+      }
       setEditingTransaction(null);
       setEditingForm({
         date: '',
@@ -362,7 +379,9 @@ const UserDetail = () => {
       });
       await fetchSummary();
     } catch (err) {
-      setEditingError(err.response?.data?.message || 'Failed to update transaction');
+      const message = err.response?.data?.message || 'Failed to update transaction';
+      setEditingError(message);
+      showToast(`Failed to update transaction: ${message}`, 'error', 'Action Failed');
     } finally {
       setActionLoading((prev) => {
         const next = { ...prev };

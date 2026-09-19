@@ -94,11 +94,12 @@ const createTransaction = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "type must be 'deposit' or 'withdrawal'" });
     }
 
-    if (Number(amount) <= 0) {
+    const amountValue = Number.parseFloat(amount);
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
       return res.status(400).json({ success: false, message: 'Amount must be greater than 0' });
     }
 
-    const feeValue = Number(extraFee || 0);
+    const feeValue = Number.parseFloat(extraFee) || 0;
     if (!Number.isFinite(feeValue) || feeValue < 0) {
       return res.status(400).json({ success: false, message: 'Extra fee must be zero or a positive number' });
     }
@@ -118,7 +119,7 @@ const createTransaction = async (req, res, next) => {
         villageName: effectiveVillage,
         date: transactionDate,
         type,
-        amount,
+        amount: amountValue,
         extraFee: feeValue,
         note: note || '',
         createdBy: req.admin._id,
@@ -330,10 +331,10 @@ const createTransaction = async (req, res, next) => {
           }
         }
       } else {
-        transactionData.originalAmount = Number(amount);
-        transactionData.originalEnteredAmount = Number(amount);
-        transactionData.effectiveDepositBalance = Number(amount) * 0.5;
-        transactionData.remainingBalance = Number(amount) * 0.5;
+        transactionData.originalAmount = amountValue;
+        transactionData.originalEnteredAmount = amountValue;
+        transactionData.effectiveDepositBalance = amountValue * 0.5;
+        transactionData.remainingBalance = amountValue * 0.5;
       }
 
       [createdTransaction] = await Transaction.create([transactionData], { session });
@@ -438,12 +439,16 @@ const updateTransaction = async (req, res, next) => {
     }
     if (type !== undefined) transaction.type = type;
     if (amount !== undefined) {
-      transaction.amount = amount;
+      const amountValue = Number.parseFloat(amount);
+      if (!Number.isFinite(amountValue) || amountValue <= 0) {
+        return res.status(400).json({ success: false, message: 'Amount must be greater than 0' });
+      }
+      transaction.amount = amountValue;
       if ((type || transaction.type) === 'deposit') {
-        transaction.originalAmount = Number(amount);
-        transaction.originalEnteredAmount = Number(amount);
-        transaction.effectiveDepositBalance = Number(amount) * 0.5;
-        transaction.remainingBalance = Number(amount) * 0.5;
+        transaction.originalAmount = amountValue;
+        transaction.originalEnteredAmount = amountValue;
+        transaction.effectiveDepositBalance = amountValue * 0.5;
+        transaction.remainingBalance = amountValue * 0.5;
       }
     }
     if (note !== undefined) transaction.note = note;
@@ -491,33 +496,90 @@ const deleteAllUserTransactions = async (req, res, next) => {
   }
 };
 
-// @route DELETE /api/transactions/delete-range?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+// @route DELETE|POST /api/transactions/filtered-delete
+// Danger Zone bulk delete. Deletes every transaction that matches the
+// supplied filter criteria. Filters are accepted from the query string or a
+// JSON body: startDate, endDate, memberId, workerId, worker (name), village,
+// adminId. Dates accept 'YYYY-MM-DD' or full ISO strings and are canonicalised
+// to UTC midnight so the range lines up exactly with how transaction dates
+// are stored.
 const deleteTransactionsByDateRange = async (req, res, next) => {
   try {
-    const { startDate, endDate } = { ...req.query, ...(req.body || {}) };
+    const { startDate, endDate, workerId, memberId, worker, village, adminId } = {
+      ...req.query,
+      ...(req.body || {}),
+    };
+
     if (!startDate || !endDate) {
       return res.status(400).json({ success: false, message: 'startDate and endDate are required' });
     }
 
-    const start = new Date(`${startDate}T00:00:00.000Z`);
-    const end = new Date(`${endDate}T00:00:00.000Z`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return res.status(400).json({ success: false, message: 'Invalid date range' });
+    // An adminId, when supplied, must reference the authenticated admin.
+    if (adminId) {
+      if (!mongoose.Types.ObjectId.isValid(adminId) || String(adminId) !== String(req.admin._id)) {
+        return res.status(403).json({ success: false, message: 'You can only delete your own transactions' });
+      }
     }
-    if (start > end) {
+
+    // Canonicalise the range to UTC midnight of the intended calendar days.
+    // toUtcMidnight rejects impossible dates (e.g. '2026-02-31') that would
+    // otherwise roll over silently and delete the wrong window.
+    const start = toUtcMidnight(startDate);
+    if (!start) {
+      return res.status(400).json({ success: false, message: 'Invalid startDate. Use the YYYY-MM-DD format.' });
+    }
+    // The end boundary is exclusive midnight of the day AFTER endDate so the
+    // whole end date (all day) is included in the deletion window.
+    const endExclusive = toUtcMidnight(endDate);
+    if (!endExclusive) {
+      return res.status(400).json({ success: false, message: 'Invalid endDate. Use the YYYY-MM-DD format.' });
+    }
+    endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+    if (start.getTime() >= endExclusive.getTime()) {
       return res.status(400).json({ success: false, message: 'Start date cannot be after end date' });
     }
 
-    const result = await Transaction.deleteMany(
-      buildTransactionQuery(req, {
-        date: { $gte: start, $lt: new Date(end.getTime() + 86400000) },
-      })
-    );
+    const filter = {
+      date: { $gte: start, $lt: endExclusive },
+    };
+
+    // Optional member scoping. `memberId` wins, then `workerId` when it holds
+    // a member ObjectId; otherwise `worker` is treated as a worker NAME and
+    // resolved to that worker's members (case-insensitive exact match). An
+    // unknown worker resolves to an empty id list, which deletes nothing —
+    // never falling through to an unscoped delete.
+    const requestedMemberId = memberId || (workerId && mongoose.Types.ObjectId.isValid(workerId) ? workerId : null);
+    if (requestedMemberId) {
+      filter.member = requestedMemberId;
+    } else {
+      const workerName = String(worker || workerId || '').trim();
+      if (workerName) {
+        const matchingMembers = await Member.find(
+          buildMemberQuery(req, {
+            createdByWorker: { $regex: new RegExp(`^${workerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+          })
+        ).select('_id').lean();
+        filter.member = { $in: matchingMembers.map((member) => member._id) };
+      }
+    }
+
+    // Optional village scoping (case-insensitive exact match), mirroring the
+    // ledger grid's village filter so the deleted set matches what the user
+    // sees on screen.
+    const villageName = String(village || '').trim();
+    if (villageName) {
+      filter.villageName = { $regex: new RegExp(`^${villageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') };
+    }
+
+    const result = await Transaction.deleteMany(buildTransactionQuery(req, filter));
 
     res.status(200).json({
       success: true,
-      message: 'Transactions deleted for the selected date range',
+      count: result.deletedCount,
       deletedCount: result.deletedCount,
+      message: result.deletedCount > 0
+        ? 'Filtered transactions deleted successfully!'
+        : 'No transactions matched the selected filters.',
     });
   } catch (err) {
     next(err);

@@ -6,6 +6,7 @@ import LedgerTable from '../components/LedgerTable';
 import MetricCard from '../components/MetricCard';
 import ConfirmModal from '../components/ConfirmModal';
 import api from '../api/axios';
+import { useToast } from '../context/ToastContext';
 
 const toDateKey = (value) => {
   if (!value) return '';
@@ -38,6 +39,11 @@ const Dashboard = () => {
   const [deleteRange, setDeleteRange] = useState({ startDate: '', endDate: '' });
   const [showAdvancedTools, setShowAdvancedTools] = useState(false);
   const [dangerOpen, setDangerOpen] = useState(false);
+  // Snapshot of the filters the pending Danger-Zone delete will target, so the
+  // confirmation prompt and the API request always match exactly what the user
+  // confirmed.
+  const [pendingDeleteFilters, setPendingDeleteFilters] = useState(null);
+  const { showToast } = useToast();
 
   const fetchGrid = async (village = selectedVillage, worker = selectedWorker) => {
     setLoading(true);
@@ -76,27 +82,64 @@ const Dashboard = () => {
     }
   };
 
+  // Resolves the Danger-Zone delete criteria: the dropdown's own date inputs
+  // win, otherwise fall back to the active From/To date filters. The worker
+  // and village filters currently applied to the ledger are always included so
+  // the delete targets exactly the transactions visible on screen.
+  const resolveDeleteFilters = () => {
+    const startDate = deleteRange.startDate || dateFrom;
+    const endDate = deleteRange.endDate || dateTo;
+    if (!startDate || !endDate) return null;
+    if (startDate > endDate) return null;
+    return {
+      startDate,
+      endDate,
+      ...(selectedWorker ? { worker: selectedWorker } : {}),
+      ...(selectedVillage ? { village: selectedVillage } : {}),
+    };
+  };
+
   const requestDeleteRange = () => {
-    if (!deleteRange.startDate || !deleteRange.endDate) {
-      setError('Please select both a start date and an end date.');
+    const startDate = deleteRange.startDate || dateFrom;
+    const endDate = deleteRange.endDate || dateTo;
+    if (!startDate || !endDate) {
+      const message = 'Please select both a start date and an end date (or set the From/To date filters).';
+      setError(message);
+      showToast(message, 'error', 'Danger Zone');
       return;
     }
-    if (deleteRange.startDate > deleteRange.endDate) {
-      setError('Start date cannot be after end date.');
+    if (startDate > endDate) {
+      const message = 'Start date cannot be after end date.';
+      setError(message);
+      showToast(message, 'error', 'Danger Zone');
       return;
     }
+    setDeleteRange({ startDate, endDate });
+    setPendingDeleteFilters(resolveDeleteFilters());
     setError('');
+    // Prominent confirmation prompt before dispatching the delete request.
     setDeleteRangeOpen(true);
   };
 
   const confirmDeleteRange = async () => {
+    const filters = pendingDeleteFilters || {
+      ...deleteRange,
+      ...(selectedWorker ? { worker: selectedWorker } : {}),
+      ...(selectedVillage ? { village: selectedVillage } : {}),
+    };
     try {
-      const res = await api.delete('/transactions/delete-range', { params: deleteRange });
+      const res = await api.delete('/transactions/filtered-delete', { params: filters });
+      const deletedCount = Number(res.data?.count ?? res.data?.deletedCount ?? 0);
       setDeleteRangeOpen(false);
-      setSuccessMessage(`${res.data.deletedCount || 0} transaction(s) deleted successfully.`);
+      setPendingDeleteFilters(null);
+      const summary = `Successfully deleted ${deletedCount} transaction${deletedCount === 1 ? '' : 's'} (${filters.startDate} → ${filters.endDate}).`;
+      setSuccessMessage(summary);
+      showToast(summary, 'success', 'Danger Zone');
       await Promise.all([fetchGrid(selectedVillage, selectedWorker), fetchTransactions()]);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete transactions for the selected range');
+      const message = err.response?.data?.message || 'Failed to delete transactions for the selected range';
+      setError(message);
+      showToast(`Failed to delete transactions: ${message}`, 'error', 'Danger Zone');
       setDeleteRangeOpen(false);
     }
   };
@@ -164,7 +207,9 @@ const Dashboard = () => {
         : 0),
     0
   );
-  summaryTotals.depositBalance = summaryTotals.halfAmount;
+  // Extra fees are additional usable funds, while the 50% deposit pool is
+  // still derived from the original deposit amount.
+  summaryTotals.depositBalance = summaryTotals.halfAmount + summaryTotals.totalExtraFees;
   summaryTotals.receivedTotal = summaryTotals.totalWithdrawn;
 
   const visibleDateKeys = (dateFrom || dateTo) ? availableDateKeys.filter((dateKey) => (!dateFrom || dateKey >= dateFrom) && (!dateTo || dateKey <= dateTo)) : availableDateKeys;
@@ -537,7 +582,20 @@ const Dashboard = () => {
                 <div className="relative lg:ml-auto">
                   <button
                     type="button"
-                    onClick={() => setDangerOpen((prev) => !prev)}
+                    onClick={() =>
+                      setDangerOpen((prev) => {
+                        const next = !prev;
+                        if (next) {
+                          // Prefill the danger-zone inputs from the active date
+                          // filters so the delete targets the range on screen.
+                          setDeleteRange((prevRange) => ({
+                            startDate: prevRange.startDate || dateFrom,
+                            endDate: prevRange.endDate || dateTo,
+                          }));
+                        }
+                        return next;
+                      })
+                    }
                     aria-expanded={dangerOpen}
                     className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-medium text-red-700 shadow-sm transition-colors hover:bg-red-50"
                   >
@@ -703,16 +761,22 @@ const Dashboard = () => {
         )}
       </main>
 
-      {showAdvancedTools && (
-        <ConfirmModal
-          open={deleteRangeOpen}
-          title="Delete transactions by date range"
-          message={`Are you sure you want to delete all transactions between ${deleteRange.startDate} and ${deleteRange.endDate}?`}
-          confirmLabel="Delete All"
-          onConfirm={confirmDeleteRange}
-          onCancel={() => setDeleteRangeOpen(false)}
-        />
-      )}
+      {/* Danger-Zone confirmation prompt — rendered outside the advanced-tools
+          gate so it is always visible once a delete has been requested. */}
+      <ConfirmModal
+        open={deleteRangeOpen}
+        title="Delete filtered transactions"
+        message={
+          pendingDeleteFilters
+            ? `This permanently removes every transaction between ${pendingDeleteFilters.startDate} and ${pendingDeleteFilters.endDate}` +
+              `${pendingDeleteFilters.worker ? ` for worker "${pendingDeleteFilters.worker}"` : ''}` +
+              `${pendingDeleteFilters.village ? ` in village "${pendingDeleteFilters.village}"` : ''}. This action cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete All"
+        onConfirm={confirmDeleteRange}
+        onCancel={() => setDeleteRangeOpen(false)}
+      />
     </div>
   );
 };

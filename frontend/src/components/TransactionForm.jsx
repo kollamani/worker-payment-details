@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Search, X, Wallet, HandCoins, CalendarDays, ArrowLeft } from 'lucide-react';
 import { isFutureDateKey, isValidDateKey, todayKey } from '../utils/dates';
 import api from '../api/axios';
+import { useToast } from '../context/ToastContext';
 
 const formatMoney = (v) =>
   `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -10,6 +11,7 @@ const inputClass = (focus) =>
   `w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${focus}`;
 
 const TransactionForm = ({ members, onSubmit }) => {
+  const { showToast } = useToast();
   const [form, setForm] = useState({
     member: '',
     villageName: '',
@@ -195,17 +197,30 @@ const TransactionForm = ({ members, onSubmit }) => {
         member: form.member,
         villageName: form.villageName || (members || []).find((m) => m._id === form.member)?.villageName || '',
         type: form.type,
-        amount: Number(form.amount),
+        amount: Number.parseFloat(form.amount) || 0,
         note: form.note,
         date: form.date,
       };
 
       if (form.type === 'deposit') {
-        payload.extraFee = form.hasExtraFee ? Number(form.extraFee) : 0;
+        payload.extraFee = form.hasExtraFee ? Number.parseFloat(form.extraFee) || 0 : 0;
       }
 
       await onSubmit(payload);
       setSuccess('Transaction recorded successfully!');
+      const amountDisplay = `₹${(Number.parseFloat(form.amount) || 0).toLocaleString('en-IN')}`;
+      if (isDeposit) {
+        const hasFee = form.hasExtraFee && Number(form.extraFee) > 0;
+        showToast(
+          hasFee
+            ? `Deposit of ${amountDisplay} processed! Extra fee of ₹${(Number.parseFloat(form.extraFee) || 0).toLocaleString('en-IN')} added.`
+            : `Deposit of ${amountDisplay} processed!`,
+          'success',
+          'Deposit Successful'
+        );
+      } else {
+        showToast(`Withdrawal of ${amountDisplay} processed!`, 'success', 'Withdrawal Successful');
+      }
       setBalanceInfo(null);
       setForm({
         member: form.member,
@@ -218,7 +233,9 @@ const TransactionForm = ({ members, onSubmit }) => {
         extraFee: 0,
       });
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to record transaction');
+      const message = err.response?.data?.message || 'Failed to record transaction';
+      setError(message);
+      showToast(`Failed to record ${isDeposit ? 'deposit' : 'withdrawal'}: ${message}`, 'error', 'Transaction Failed');
     } finally {
       setSaving(false);
     }

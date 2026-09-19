@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import ConfirmModal from '../components/ConfirmModal';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const emptyRow = () => ({
   localId: `${Date.now()}-${Math.random()}`,
@@ -23,6 +24,7 @@ const NOTES_PER_PAGE = 5;
 
 const TaskNotes = () => {
   const { loading: authLoading, isAuthenticated } = useAuth();
+  const { showToast } = useToast();
   const [rows, setRows] = useState([emptyRow()]);
   const [savedNotes, setSavedNotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -139,9 +141,12 @@ const TaskNotes = () => {
       );
       setRows([emptyRow()]);
       setSuccess('Task notes saved successfully.');
+      showToast('Task notes saved successfully.');
       await fetchTaskNotes();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save task notes');
+      const message = err.response?.data?.message || 'Failed to save task notes';
+      setError(message);
+      showToast(`Action failed: ${message}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -153,8 +158,11 @@ const TaskNotes = () => {
       await api.delete(`/task-notes/${noteToDelete._id}`);
       setSavedNotes((current) => current.filter((note) => note._id !== noteToDelete._id));
       setNoteToDelete(null);
+      showToast('Task note deleted successfully.');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete task note');
+      const message = err.response?.data?.message || 'Failed to delete task note';
+      setError(message);
+      showToast(`Action failed: ${message}`, 'error');
       setNoteToDelete(null);
     }
   };
@@ -163,8 +171,11 @@ const TaskNotes = () => {
     try {
       const res = await api.put(`/task-notes/${note._id}`, { status: note.status === 'completed' ? 'open' : 'completed' });
       setSavedNotes((current) => current.map((item) => (item._id === note._id ? res.data.taskNote : item)));
+      showToast(note.status === 'completed' ? 'Task reopened successfully.' : 'Task completed successfully.', 'info');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update task status');
+      const message = err.response?.data?.message || 'Failed to update task status';
+      setError(message);
+      showToast(`Action failed: ${message}`, 'error');
     }
   };
 
@@ -195,8 +206,11 @@ const TaskNotes = () => {
       });
       setSavedNotes((current) => current.map((item) => (item._id === editingNote._id ? res.data.taskNote : item)));
       setEditingNote(null);
+      showToast('Task note updated successfully.');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update task note');
+      const message = err.response?.data?.message || 'Failed to update task note';
+      setError(message);
+      showToast(`Action failed: ${message}`, 'error');
     }
   };
 
