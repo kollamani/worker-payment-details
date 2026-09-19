@@ -7,6 +7,7 @@ import Members from './pages/Members';
 import RecordTransaction from './pages/RecordTransaction';
 import UsersList from './pages/UsersList';
 import UserDetail from './pages/UserDetail';
+import TaskNotes from './pages/TaskNotes';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -44,6 +45,14 @@ function App() {
         element={
           <ProtectedRoute>
             <UsersList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/task-notes"
+        element={
+          <ProtectedRoute>
+            <TaskNotes />
           </ProtectedRoute>
         }
       />

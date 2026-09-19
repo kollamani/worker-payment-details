@@ -5,8 +5,8 @@ const ConfirmModal = ({ open, title, message, onConfirm, onCancel, confirmLabel 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4">
+      <div className="my-auto max-h-[90vh] w-[95%] max-w-sm overflow-y-auto rounded-2xl bg-white p-4 shadow-xl sm:p-6">
         <div className="flex items-center gap-3 mb-3">
           <div className="p-2 bg-red-50 text-red-600 rounded-full">
             <AlertTriangle size={20} />
@@ -14,16 +14,16 @@ const ConfirmModal = ({ open, title, message, onConfirm, onCancel, confirmLabel 
           <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
         </div>
         <p className="text-sm text-gray-600 mb-6">{message}</p>
-        <div className="flex justify-end gap-3">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700"
+            className="w-full rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 sm:w-auto"
           >
             {confirmLabel}
           </button>

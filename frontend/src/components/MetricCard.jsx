@@ -1,27 +1,29 @@
 import React from 'react';
 
-const colorMap = {
-  blue: 'bg-blue-50 text-blue-700 border-blue-200',
-  green: 'bg-green-50 text-green-700 border-green-200',
-  amber: 'bg-amber-50 text-amber-700 border-amber-200',
-  red: 'bg-red-50 text-red-700 border-red-200',
+const accentMap = {
+  blue: 'bg-indigo-50 text-indigo-600',
+  green: 'bg-emerald-50 text-emerald-600',
+  amber: 'bg-amber-50 text-amber-600',
+  red: 'bg-red-50 text-red-600',
 };
 
 const MetricCard = ({ label, value, icon: Icon, color = 'blue' }) => {
   return (
-    <div className={`rounded-xl border p-4 flex items-center gap-4 ${colorMap[color]}`}>
-      {Icon && (
-        <div className="p-3 rounded-lg bg-white/70">
-          <Icon size={22} />
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium uppercase tracking-wider text-slate-500">{label}</p>
+          <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">
+            {typeof value === 'number'
+              ? `${value.toLocaleString('en-IN')}`
+              : value}
+          </p>
         </div>
-      )}
-      <div>
-        <p className="text-xs font-medium uppercase tracking-wide opacity-70">{label}</p>
-        <p className="text-xl font-bold text-center">
-          {typeof value === 'number'
-            ? `${value.toLocaleString('en-IN')}`
-            : value}
-        </p>
+        {Icon && (
+          <div className={`shrink-0 rounded-lg p-2.5 ${accentMap[color]}`}>
+            <Icon size={20} strokeWidth={2} className="opacity-80" />
+          </div>
+        )}
       </div>
     </div>
   );

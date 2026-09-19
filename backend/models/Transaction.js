@@ -16,6 +16,8 @@ const TransactionSchema = new mongoose.Schema(
     date: {
       type: Date,
       required: [true, 'Transaction date is required'],
+      // Safety net: any write path that omits the date still stores a value.
+      default: Date.now,
     },
     type: {
       type: String,
@@ -26,6 +28,32 @@ const TransactionSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'Amount is required'],
       min: [0.01, 'Amount must be greater than 0'],
+    },
+    originalAmount: {
+      type: Number,
+      min: [0.01, 'Original amount must be greater than 0'],
+    },
+    originalEnteredAmount: {
+      type: Number,
+      min: [0.01, 'Original entered amount must be greater than 0'],
+    },
+    effectiveDepositBalance: {
+      type: Number,
+      min: [0, 'Effective deposit balance cannot be negative'],
+    },
+    remainingBalance: {
+      type: Number,
+      min: [0, 'Remaining balance cannot be negative'],
+    },
+    sourceDepositDate: {
+      type: Date,
+    },
+    deductFromDepositDate: {
+      type: Date,
+    },
+    sourceDepositId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Transaction',
     },
     extraFee: {
       type: Number,

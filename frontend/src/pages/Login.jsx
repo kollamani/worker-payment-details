@@ -25,8 +25,8 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 to-white px-4">
-      <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-md border border-gray-100">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 to-white px-3 py-6 sm:px-4 sm:py-8">
+      <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-5 shadow-xl sm:p-8">
         <div className="flex flex-col items-center mb-6">
           <div className="p-3 bg-brand-600 text-white rounded-xl mb-3">
             <Wallet size={28} />
@@ -72,7 +72,7 @@ const Login = () => {
 
         <p className="text-sm text-center text-gray-500 mt-6">
           Don&apos;t have an account?{' '}
-          <Link to="/signup" className="text-brand-700 font-medium hover:underline">
+          <Link to="/signup" className="text-brand-700 font-medium no-underline hover:no-underline">
             Sign up
           </Link>
         </p>

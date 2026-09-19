@@ -7,6 +7,7 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 const authRoutes = require('./routes/auth');
 const memberRoutes = require('./routes/members');
 const transactionRoutes = require('./routes/transactions');
+const taskNoteRoutes = require('./routes/taskNoteRoutes');
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/task-notes', taskNoteRoutes);
 
 // Error handling (must be last)
 app.use(notFound);

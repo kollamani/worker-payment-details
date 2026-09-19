@@ -3,7 +3,55 @@
 @tailwind utilities;
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: Inter, 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #f8fafc;
+  color: #1e293b;
+  overflow-x: hidden;
+}
+
+@layer utilities {
+  .tabular-money {
+    @apply font-mono tabular-nums;
+  }
+}
+
+@layer components {
+  .table-row-hover {
+    @apply cursor-pointer hover:bg-slate-100/80;
+    transition: all 250ms ease-out;
+  }
+
+  .worker-nav-link {
+    display: inline-block;
+    color: #334155;
+    text-decoration: none;
+    transition: color 200ms ease-out, transform 200ms ease-out, filter 200ms ease-out;
+  }
+
+  .worker-nav-link:hover,
+  .worker-nav-link:focus-visible {
+    color: #4f46e5;
+    text-decoration: none;
+    transform: translateY(-0.125rem) scale(1.05);
+    filter: drop-shadow(0 2px 4px rgb(79 70 229 / 30%));
+  }
+
+  table tbody tr {
+    position: relative;
+    z-index: 0;
+    transition: all 250ms ease-out;
+  }
+
+  table tbody tr:hover {
+    z-index: 10;
+    transform: translateY(-4px);
+    background-color: white;
+    border-top: 1px solid rgb(255 255 255 / 60%);
+    box-shadow:
+      0 10px 20px -5px rgb(0 0 0 / 10%),
+      0 8px 10px -6px rgb(0 0 0 / 5%);
+  }
 }
 
 /* Sticky first columns for the ledger table */
@@ -12,4 +60,16 @@ body {
   left: 0;
   background: white;
   z-index: 10;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @layer components {
+    table tbody tr {
+      transition: none;
+    }
+
+    table tbody tr:hover {
+      transform: none;
+    }
+  }
 }
