@@ -1,4 +1,50 @@
 const TaskNote = require('../models/TaskNote');
+const { TASK_NOTE_CATEGORIES, DEFAULT_TASK_NOTE_CATEGORY } = require('../models/TaskNote');
+
+const CATEGORY_RULE = `Category must be one of: ${TASK_NOTE_CATEGORIES.join(', ')}`;
+
+// Only PRESENT_HAVING represents money currently held. PRESENT_EXPENSE is the
+// expense bucket (its completed tasks reduce the balance), never an income
+// source — it deliberately replaces the removed 'SAVINGS' option.
+const INCOME_CATEGORIES = ['PRESENT_HAVING'];
+
+/**
+ * Dashboard summary metrics — single source of truth for the 4 metric cards.
+ *   1. totalPresentHaving   = Present Income (PRESENT_HAVING)
+ *                             - Present Expense (every COMPLETED task)
+ *   2. totalExpense         = every COMPLETED task (Present Expense == completed)
+ *   3. totalExpectedIncome  = pending (open) EXPECTED_INCOME tasks
+ *   4. totalExpectedExpense = pending (open) EXPECTED_EXPENSE tasks
+ */
+const buildTaskSummary = (notes) => {
+  const amountOf = (note) => Number(note.presentAmount || 0);
+  const categoryOf = (note) => note.category || DEFAULT_TASK_NOTE_CATEGORY;
+  const isCompleted = (note) => note.status === 'completed';
+
+  const presentIncome = notes
+    .filter((note) => INCOME_CATEGORIES.includes(categoryOf(note)))
+    .reduce((sum, note) => sum + amountOf(note), 0);
+
+  const totalExpense = notes.filter(isCompleted).reduce((sum, note) => sum + amountOf(note), 0);
+
+  const pendingOf = (category) =>
+    notes
+      .filter((note) => !isCompleted(note) && categoryOf(note) === category)
+      .reduce((sum, note) => sum + amountOf(note), 0);
+
+  return {
+    totalPresentHaving: presentIncome - totalExpense,
+    presentIncome,
+    totalExpense,
+    totalExpectedIncome: pendingOf('EXPECTED_INCOME'),
+    totalExpectedExpense: pendingOf('EXPECTED_EXPENSE'),
+    counts: {
+      total: notes.length,
+      completed: notes.filter(isCompleted).length,
+      open: notes.filter((note) => !isCompleted(note)).length,
+    },
+  };
+};
 
 const buildTaskNoteQuery = (req, extraFilter = {}) => ({
   createdBy: req.admin._id,
@@ -7,8 +53,22 @@ const buildTaskNoteQuery = (req, extraFilter = {}) => ({
 
 const getTaskNotes = async (req, res, next) => {
   try {
+    const { category } = req.query;
+    // Optional server-side slice: ?category=EXPECTED_INCOME returns only that
+    // category. The response always carries each task's mapped category field.
+    if (category && !TASK_NOTE_CATEGORIES.includes(category)) {
+      return res.status(400).json({ success: false, message: CATEGORY_RULE });
+    }
+    // Always load the full set so the summary reflects every task, then slice
+    // the response when a category filter is requested.
     const taskNotes = await TaskNote.find(buildTaskNoteQuery(req)).sort({ createdAt: -1 });
-    res.status(200).json({ success: true, count: taskNotes.length, taskNotes });
+    const visibleNotes = category ? taskNotes.filter((taskNote) => taskNote.category === category) : taskNotes;
+    res.status(200).json({
+      success: true,
+      count: visibleNotes.length,
+      taskNotes: visibleNotes,
+      summary: buildTaskSummary(taskNotes),
+    });
   } catch (err) {
     next(err);
   }
@@ -16,21 +76,14 @@ const getTaskNotes = async (req, res, next) => {
 
 const createTaskNote = async (req, res, next) => {
   try {
-    const { description, presentAmount, note: requestedNote } = req.body;
-    const requestedTotal = req.body.totalAmount ?? req.body.targetAmount;
+    const { description, presentAmount, note: requestedNote, category: requestedCategory } = req.body;
     const present = Number(presentAmount);
-    const target = requestedTotal === '' || requestedTotal === null || requestedTotal === undefined
-      ? null
-      : Number(requestedTotal);
 
     if (!description?.trim()) {
       return res.status(400).json({ success: false, message: 'Task description is required' });
     }
     if (!Number.isFinite(present) || present < 0) {
       return res.status(400).json({ success: false, message: 'Present amount must be a valid non-negative number' });
-    }
-    if (target !== null && (!Number.isFinite(target) || target < 0)) {
-      return res.status(400).json({ success: false, message: 'Target amount must be a valid non-negative number' });
     }
     if (requestedNote !== undefined && requestedNote !== null && typeof requestedNote !== 'string') {
       return res.status(400).json({ success: false, message: 'Task note must be text' });
@@ -40,13 +93,22 @@ const createTaskNote = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Task note cannot exceed 2000 characters' });
     }
 
+    // Category is optional on the wire for backward compatibility: a missing,
+    // null, or empty value falls back to the default so old clients keep
+    // working, while an explicit unknown value is rejected.
+    const category =
+      requestedCategory === undefined || requestedCategory === null || requestedCategory === ''
+        ? DEFAULT_TASK_NOTE_CATEGORY
+        : requestedCategory;
+    if (!TASK_NOTE_CATEGORIES.includes(category)) {
+      return res.status(400).json({ success: false, message: CATEGORY_RULE });
+    }
+
     const taskNote = await TaskNote.create({
+      category,
       description: description.trim(),
       note: note || null,
       presentAmount: present,
-      targetAmount: target,
-      totalAmount: target,
-      remainingBalance: present - (target ?? 0),
       status: 'open',
       createdBy: req.admin._id,
     });
@@ -82,24 +144,19 @@ const updateTaskNote = async (req, res, next) => {
       taskNote.note = note || null;
     }
 
+    if (req.body.category !== undefined) {
+      if (!TASK_NOTE_CATEGORIES.includes(req.body.category)) {
+        return res.status(400).json({ success: false, message: CATEGORY_RULE });
+      }
+      taskNote.category = req.body.category;
+    }
+
     if (req.body.presentAmount !== undefined) {
       const present = Number(req.body.presentAmount);
       if (!Number.isFinite(present) || present < 0) {
         return res.status(400).json({ success: false, message: 'Present amount must be a valid non-negative number' });
       }
       taskNote.presentAmount = present;
-    }
-
-    if (req.body.totalAmount !== undefined || req.body.targetAmount !== undefined) {
-      const requestedTotal = req.body.totalAmount ?? req.body.targetAmount;
-      const target = requestedTotal === '' || requestedTotal === null
-        ? null
-        : Number(requestedTotal);
-      if (target !== null && (!Number.isFinite(target) || target < 0)) {
-        return res.status(400).json({ success: false, message: 'Target amount must be a valid non-negative number' });
-      }
-      taskNote.targetAmount = target;
-      taskNote.totalAmount = target;
     }
 
     if (req.body.status !== undefined) {
@@ -109,9 +166,6 @@ const updateTaskNote = async (req, res, next) => {
       taskNote.status = req.body.status;
       taskNote.completedAt = req.body.status === 'completed' ? new Date() : null;
     }
-
-    taskNote.remainingBalance =
-      Number(taskNote.presentAmount || 0) - Number(taskNote.targetAmount ?? taskNote.totalAmount ?? 0);
 
     await taskNote.save();
     res.status(200).json({ success: true, taskNote });

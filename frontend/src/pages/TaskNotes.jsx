@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, ClipboardList, Target, Wallet, CircleDashed, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Wallet, Receipt, TrendingUp, TrendingDown, Search, ChevronDown } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import ConfirmModal from '../components/ConfirmModal';
 import api from '../api/axios';
@@ -11,16 +11,121 @@ const emptyRow = () => ({
   description: '',
   note: '',
   presentAmount: '',
-  targetAmount: '',
+  category: DEFAULT_CATEGORY,
 });
+
+// Task categories — values must match the backend TaskNote schema enum.
+export const CATEGORIES = [
+  { value: 'PRESENT_HAVING', label: 'Present Having' },
+  { value: 'PRESENT_EXPENSE', label: 'Present Expense' },
+  { value: 'EXPECTED_INCOME', label: 'Expected Income' },
+  { value: 'EXPECTED_EXPENSE', label: 'Expected Expense' },
+];
+
+export const DEFAULT_CATEGORY = 'PRESENT_HAVING';
+
+
+
+// Normalizes any incoming category value (enum key, legacy label text, or a
+// casing variant) into a standardized enum key so the badge label/color
+// lookups can never silently fall back to "Present Having".
+const normalizeCategory = (categoryValue) => {
+  if (!categoryValue) return DEFAULT_CATEGORY;
+  const raw = String(categoryValue).trim();
+  if (!raw) return DEFAULT_CATEGORY;
+  // 'SAVINGS' was removed and replaced by 'PRESENT_EXPENSE'; remap legacy
+  // documents/labels so old tasks render in their new bucket.
+  const upper = raw.toUpperCase();
+  const normalized = upper === 'SAVINGS' ? 'PRESENT_EXPENSE' : raw;
+  const direct = CATEGORIES.find((category) => category.value === normalized.toUpperCase());
+  if (direct) return direct.value;
+  const byLabel = CATEGORIES.find((category) => category.label.toLowerCase() === raw.toLowerCase());
+  return byLabel ? byLabel.value : normalized.toUpperCase();
+};
+
+// Single source of truth for a category's display label + badge colors.
+// Used by the saved task cards, the KPI bar, and the category filter tabs.
+const getCategoryDetails = (categoryValue) => {
+  switch (normalizeCategory(categoryValue)) {
+    case 'EXPECTED_EXPENSE':
+      return { value: 'EXPECTED_EXPENSE', label: 'Expected Expense', colorClass: 'bg-red-100 text-red-700 border-red-300' };
+    case 'EXPECTED_INCOME':
+      return { value: 'EXPECTED_INCOME', label: 'Expected Income', colorClass: 'bg-green-100 text-green-700 border-green-300' };
+    case 'PRESENT_EXPENSE':
+      return { value: 'PRESENT_EXPENSE', label: 'Present Expense', colorClass: 'bg-rose-100 text-rose-700 border-rose-300' };
+    case 'PRESENT_HAVING':
+    default:
+      return { value: 'PRESENT_HAVING', label: 'Present Having', colorClass: 'bg-blue-100 text-blue-700 border-blue-300' };
+  }
+};
+
+const categoryLabel = (value) => getCategoryDetails(value).label;
+const categoryShortLabel = (value) => getCategoryDetails(value).label;
+const categoryBadgeClass = (value) => getCategoryDetails(value).colorClass;
 
 const formatMoney = (value) =>
   `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const noteRemaining = (note) =>
-  Number(note.remainingBalance ?? (Number(note.presentAmount || 0) - Number(note.totalAmount ?? note.targetAmount ?? 0)));
+// ---------------------------------------------------------------------------
+// Business metric model (mirrors the backend buildTaskSummary())
+// ---------------------------------------------------------------------------
+// Categories whose amounts represent money currently held ("Present Income").
+// PRESENT_EXPENSE (the replacement for the removed 'SAVINGS') is the expense
+// bucket — its tasks reduce the balance when completed, never add income.
+const INCOME_CATEGORIES = ['PRESENT_HAVING'];
+// Categories whose amounts represent money going out.
+const EXPENSE_CATEGORIES = ['PRESENT_EXPENSE', 'EXPECTED_EXPENSE'];
 
-const NOTES_PER_PAGE = 5;
+// Display groups — every category renders as its own section with its own
+// tasks and its own total. "Present Expense" is the COMPLETED bucket: any
+// completed expense task is treated as Present Expense.
+const GROUPS = [
+  { key: 'PRESENT_HAVING', label: 'Present Having', hint: 'Available balance' },
+  { key: 'PRESENT_EXPENSE', label: 'Present Expense', hint: 'Completed & filed expenses' },
+  { key: 'EXPECTED_INCOME', label: 'Expected Income', hint: 'Pending income' },
+  { key: 'EXPECTED_EXPENSE', label: 'Expected Expense', hint: 'Pending expenses' },
+];
+
+const amountOf = (note) => Number(note.presentAmount || 0);
+const isCompleted = (note) => note.status === 'completed';
+
+// Section a task is displayed under. Completed expense tasks move into the
+// Present Expense group; every other task stays in its own category.
+const displayGroupKey = (note) => {
+  const category = normalizeCategory(note.category);
+  if (isCompleted(note) && EXPENSE_CATEGORIES.includes(category)) return 'PRESENT_EXPENSE';
+  return category;
+};
+
+// Local mirror of the backend summary, used when the API response has no
+// `summary` payload (older deployments).
+const computeSummary = (notes) => {
+  const presentIncome = notes
+    .filter((note) => INCOME_CATEGORIES.includes(normalizeCategory(note.category)))
+    .reduce((sum, note) => sum + amountOf(note), 0);
+  const completed = notes.filter(isCompleted);
+  const totalExpense = completed.reduce((sum, note) => sum + amountOf(note), 0);
+  const pendingOf = (category) =>
+    notes
+      .filter((note) => !isCompleted(note) && normalizeCategory(note.category) === category)
+      .reduce((sum, note) => sum + amountOf(note), 0);
+  return {
+    totalPresentHaving: presentIncome - totalExpense,
+    presentIncome,
+    totalExpense,
+    totalExpectedIncome: pendingOf('EXPECTED_INCOME'),
+    totalExpectedExpense: pendingOf('EXPECTED_EXPENSE'),
+    counts: { total: notes.length, completed: completed.length, open: notes.length - completed.length },
+  };
+};
+
+// The four dashboard metric cards required by the business spec.
+const SUMMARY_CARDS = [
+  { key: 'totalPresentHaving', label: 'Total Present Having', icon: Wallet, tint: 'from-emerald-50 via-white to-teal-50', iconTint: 'bg-emerald-100 text-emerald-700' },
+  { key: 'totalExpense', label: 'Total Expense', icon: Receipt, tint: 'from-rose-50 via-white to-pink-50', iconTint: 'bg-rose-100 text-rose-700' },
+  { key: 'totalExpectedIncome', label: 'Total Expected Income', icon: TrendingUp, tint: 'from-sky-50 via-white to-cyan-50', iconTint: 'bg-sky-100 text-sky-700' },
+  { key: 'totalExpectedExpense', label: 'Total Expected Expense', icon: TrendingDown, tint: 'from-amber-50 via-white to-orange-50', iconTint: 'bg-amber-100 text-amber-700' },
+];
 
 const TaskNotes = () => {
   const { loading: authLoading, isAuthenticated } = useAuth();
@@ -32,11 +137,12 @@ const TaskNotes = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [editingNote, setEditingNote] = useState(null);
-  const [editForm, setEditForm] = useState({ description: '', note: '', presentAmount: '', targetAmount: '' });
+  const [editForm, setEditForm] = useState({ description: '', note: '', presentAmount: '', category: DEFAULT_CATEGORY });
   const [noteToDelete, setNoteToDelete] = useState(null);
   const [search, setSearch] = useState('');
-  const [openPage, setOpenPage] = useState(1);
-  const [completedPage, setCompletedPage] = useState(1);
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  // Summary metrics returned by the API (local recompute is the fallback).
+  const [apiSummary, setApiSummary] = useState(null);
 
   const fetchTaskNotes = async () => {
     if (!isAuthenticated) return;
@@ -44,8 +150,15 @@ const TaskNotes = () => {
     setLoading(true);
     try {
       const response = await api.get('/task-notes');
-      const taskNotes = response.data.taskNotes || response.data || [];
-      setSavedNotes(Array.isArray(taskNotes) ? taskNotes : []);
+      const rawNotes = response.data.taskNotes || response.data || [];
+      const taskNotes = Array.isArray(rawNotes)
+        ? rawNotes.map((note) => ({
+            ...note,
+            category: normalizeCategory(note.category),
+          }))
+        : [];
+      setSavedNotes(taskNotes);
+      setApiSummary(response.data?.summary || null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load task notes');
     } finally {
@@ -63,58 +176,45 @@ const TaskNotes = () => {
     fetchTaskNotes();
   }, [authLoading, isAuthenticated]);
 
-  const updateRow = (localId, name, value) => {
-    setRows((current) => current.map((row) => (row.localId === localId ? { ...row, [name]: value } : row)));
+  // Index-based row updater: always writes through a functional state update so
+  // concurrent edits to different rows (or rapid dropdown changes) can never
+  // hit a stale `rows` closure — the root cause of dropdown selections being
+  // lost and tasks silently saving under the default category.
+  const updateTaskRow = (index, name, value) => {
+    setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, [name]: value } : row)));
   };
 
-  const removeRow = (localId) => {
-    setRows((current) => (current.length === 1 ? current : current.filter((row) => row.localId !== localId)));
+  // Dedicated category handler: updates ONLY that row's `category`
+  // property through a functional state update. Nothing here can reset another
+  // row, and the value is stored exactly as it arrives from the <select>.
+  const handleCategoryChange = (index, newCategory) => {
+    setRows((prevRows) => {
+      const next = [...prevRows];
+      next[index] = { ...next[index], category: newCategory };
+      return next;
+    });
   };
 
-  const rowRemaining = (row) => {
-    const present = Number(row.presentAmount || 0);
-    const target = Number(row.targetAmount || 0);
-    return (Number.isFinite(present) ? present : 0) - (Number.isFinite(target) ? target : 0);
+  const handleEditCategoryChange = (newCategory) => {
+    setEditForm((prev) => ({ ...prev, category: newCategory }));
   };
 
-  const composerTotals = rows.reduce(
-    (sum, row) => {
-      sum.present += Number(row.presentAmount || 0);
-      sum.target += Number(row.targetAmount || 0);
-      sum.remaining += rowRemaining(row);
-      return sum;
-    },
-    { present: 0, target: 0, remaining: 0 }
-  );
+  const removeTaskRow = (index) => {
+    setRows((current) => (current.length === 1 ? current : current.filter((_, rowIndex) => rowIndex !== index)));
+  };
 
-  // Full board totals (all notes, regardless of status).
-  const boardTotals = savedNotes.reduce(
-    (sum, note) => {
-      sum.present += Number(note.presentAmount || 0);
-      sum.target += Number(note.totalAmount ?? note.targetAmount ?? 0);
-      sum.remaining += noteRemaining(note);
-      return sum;
-    },
-    { present: 0, target: 0, remaining: 0 }
-  );
+  const composerTotal = rows.reduce((sum, row) => sum + Number(row.presentAmount || 0), 0);
 
-  // Amounts tied to completed tasks. These are deducted from the primary
-  // "Present Total" summary card in real time (no page reload needed) and
-  // shown on their own dedicated "Completed Tasks Total" card.
-  const completedNotes = savedNotes.filter((note) => note.status === 'completed');
-  const completedTotals = completedNotes.reduce(
-    (sum, note) => {
-      sum.present += Number(note.presentAmount || 0);
-      sum.target += Number(note.totalAmount ?? note.targetAmount ?? 0);
-      sum.remaining += noteRemaining(note);
-      return sum;
-    },
-    { present: 0, target: 0, remaining: 0 }
-  );
+  // Prefer the API-computed summary; fall back to the local mirror.
+  const summary = apiSummary || computeSummary(savedNotes);
 
-  // Primary card value = all tasks minus completed task amounts.
-  const activePresentTotal = boardTotals.present - completedTotals.present;
-  const activeRemainingTotal = boardTotals.remaining - completedTotals.remaining;
+  // Task counts per display group (section headers + filter tabs).
+  const groupCounts = GROUPS.reduce((acc, group) => {
+    acc[group.key] = savedNotes.filter((note) => displayGroupKey(note) === group.key).length;
+    return acc;
+  }, {});
+
+
 
   const saveRows = async (event) => {
     event.preventDefault();
@@ -134,8 +234,9 @@ const TaskNotes = () => {
             description: row.description,
             note: row.note.trim() || null,
             presentAmount: Number(row.presentAmount),
-            totalAmount: row.targetAmount === '' ? null : Number(row.targetAmount),
-            targetAmount: row.targetAmount === '' ? null : Number(row.targetAmount),
+            // Map the selected dropdown value explicitly into the request body
+            // so the chosen category (e.g. EXPECTED_INCOME) persists exactly.
+            category: normalizeCategory(row.category),
           })
         )
       );
@@ -185,7 +286,7 @@ const TaskNotes = () => {
       description: note.description || '',
       note: note.note || '',
       presentAmount: note.presentAmount ?? '',
-      targetAmount: note.totalAmount ?? note.targetAmount ?? '',
+      category: normalizeCategory(note.category),
     });
   };
 
@@ -201,8 +302,7 @@ const TaskNotes = () => {
         description: editForm.description,
         note: editForm.note.trim() || null,
         presentAmount: Number(editForm.presentAmount),
-        totalAmount: editForm.targetAmount === '' ? null : Number(editForm.targetAmount),
-        targetAmount: editForm.targetAmount === '' ? null : Number(editForm.targetAmount),
+        category: editForm.category,
       });
       setSavedNotes((current) => current.map((item) => (item._id === editingNote._id ? res.data.taskNote : item)));
       setEditingNote(null);
@@ -221,9 +321,9 @@ const TaskNotes = () => {
     const haystack = [
       note.description,
       note.note,
+      categoryLabel(note.category),
       String(note.presentAmount ?? ''),
-      String(note.totalAmount ?? note.targetAmount ?? ''),
-      String(note.remainingBalance ?? ''),
+      isCompleted(note) ? 'completed' : 'pending',
     ]
       .filter(Boolean)
       .join(' ')
@@ -231,28 +331,18 @@ const TaskNotes = () => {
     return haystack.includes(query);
   };
 
-  const openNotes = savedNotes.filter((note) => note.status !== 'completed' && matchesSearch(note));
-  const completedNotesFiltered = completedNotes.filter(matchesSearch);
-  const openPageCount = Math.max(1, Math.ceil(openNotes.length / NOTES_PER_PAGE));
-  const completedPageCount = Math.max(1, Math.ceil(completedNotesFiltered.length / NOTES_PER_PAGE));
-  const visibleOpenNotes = openNotes.slice((openPage - 1) * NOTES_PER_PAGE, openPage * NOTES_PER_PAGE);
-  const visibleCompletedNotes = completedNotesFiltered.slice(
-    (completedPage - 1) * NOTES_PER_PAGE,
-    completedPage * NOTES_PER_PAGE
-  );
+  // Filter tabs operate on the display groups.
+  const matchesCategory = (note) => categoryFilter === 'ALL' || displayGroupKey(note) === categoryFilter;
 
-  useEffect(() => {
-    setOpenPage(1);
-    setCompletedPage(1);
-  }, [search]);
+  // Every group carries its own filtered tasks and its own running total.
+  const visibleGroups = GROUPS
+    .filter((group) => categoryFilter === 'ALL' || group.key === categoryFilter)
+    .map((group) => {
+      const items = savedNotes.filter((note) => displayGroupKey(note) === group.key && matchesSearch(note));
+      return { ...group, items, total: items.reduce((sum, note) => sum + amountOf(note), 0) };
+    });
 
-  useEffect(() => {
-    setOpenPage((page) => Math.min(page, openPageCount));
-  }, [openPageCount]);
-
-  useEffect(() => {
-    setCompletedPage((page) => Math.min(page, completedPageCount));
-  }, [completedPageCount]);
+  const visibleTaskCount = visibleGroups.reduce((count, group) => count + group.items.length, 0);
 
   const StatWidget = ({ icon: Icon, label, value, tint, iconTint }) => (
     <div className={`group rounded-2xl border border-white/70 bg-gradient-to-br p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${tint}`}>
@@ -270,118 +360,85 @@ const TaskNotes = () => {
 
   const NoteCard = ({ note }) => {
     const isComplete = note.status === 'completed';
+    const groupKey = displayGroupKey(note);
+    // Per-card category lookup: drives BOTH the badge label and its color, so
+    // the card always reflects the category persisted for that note.
+    const categoryDetails = getCategoryDetails(note.category);
     return (
-      <article className="flex h-full min-h-[300px] min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-[0_8px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="line-clamp-2 min-h-[3rem] font-semibold leading-6 text-slate-900" title={note.description}>
-              {note.description}
-            </p>
-            {note.note?.trim() && (
-              <p className="mt-2 line-clamp-3 text-sm italic leading-5 text-slate-600" title={note.note}>
-                {note.note}
-              </p>
-            )}
-            <p className="mt-1 text-[11px] text-slate-400">
-              {new Date(note.updatedAt || note.createdAt).toLocaleString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </p>
+      <article className="flex aspect-square min-h-[200px] min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white/95 p-3.5 shadow-[0_8px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-xl sm:p-4">
+        <div className="flex items-start justify-between gap-2">
+          <p className="line-clamp-2 min-h-[2.5rem] flex-1 text-sm font-semibold leading-5 text-slate-900" title={note.description}>
+            {note.description}
+          </p>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <span
+              className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-4 ${categoryDetails.colorClass}`}
+              title={categoryDetails.label}
+            >
+              {categoryDetails.label}
+            </span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold leading-4 ring-1 ring-inset ${
+                isComplete
+                  ? 'bg-emerald-100 text-emerald-800 ring-emerald-600/20'
+                  : 'bg-amber-100 text-amber-800 ring-amber-600/20'
+              }`}
+            >
+              {isComplete ? 'Completed' : 'Open'}
+            </span>
           </div>
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
-              isComplete
-                ? 'bg-emerald-100 text-emerald-800 ring-emerald-600/20'
-                : 'bg-amber-100 text-amber-800 ring-amber-600/20'
-            }`}
-          >
-            {isComplete ? 'Completed' : 'Open'}
+        </div>
+
+        {/* Optional note + compact date — one tight line to preserve card density */}
+        <div className="mt-1.5 flex min-h-0 items-center gap-2 text-[11px] leading-4">
+          {note.note?.trim() ? (
+            <span className="truncate italic text-slate-500" title={note.note}>
+              {note.note}
+            </span>
+          ) : null}
+          <span className="ml-auto shrink-0 whitespace-nowrap text-slate-400">
+            {new Date(note.updatedAt || note.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
           </span>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-          <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/90 px-3 py-2.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Present</p>
-            <p className="mt-1 whitespace-nowrap font-mono text-sm font-semibold leading-5 tabular-nums text-slate-900">{formatMoney(note.presentAmount)}</p>
-          </div>
-          <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/90 px-3 py-2.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Target</p>
-            <p className="mt-1 whitespace-nowrap font-mono text-sm font-semibold leading-5 tabular-nums text-slate-900">
-              {(note.totalAmount ?? note.targetAmount) === null || (note.totalAmount ?? note.targetAmount) === undefined
-                ? '—'
-                : formatMoney(note.totalAmount ?? note.targetAmount)}
-            </p>
-          </div>
-          <div className="col-span-2 min-w-0 rounded-xl border border-brand-100 bg-brand-50/80 px-3 py-2.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-brand-700/80">Have</p>
-            <p className="mt-1 whitespace-nowrap font-mono text-sm font-semibold leading-5 tabular-nums text-brand-700">{formatMoney(noteRemaining(note))}</p>
-          </div>
+        {/* Amount block */}
+        <div className="mt-2 min-w-0 rounded-lg bg-slate-50 px-2.5 py-2">
+          <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+            {isCompleted(note) ? 'Expense (completed)' : 'Amount'}
+          </p>
+          <p className="truncate font-mono text-base font-semibold leading-6 tabular-nums text-slate-900">{formatMoney(amountOf(note))}</p>
         </div>
-        <div className="mt-auto grid grid-cols-1 gap-2 pt-5 sm:grid-cols-3">
+
+        {/* Compact footer actions pinned to the bottom edge */}
+        <div className="mt-auto grid grid-cols-3 gap-1.5 pt-2.5">
           <button
             type="button"
             onClick={() => openEdit(note)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-blue-200/80 bg-blue-50 px-2.5 py-2 text-xs font-semibold text-blue-700 transition-all hover:-translate-y-0.5 hover:bg-blue-100 hover:shadow-sm"
+            title="Edit task"
+            aria-label="Edit task"
+            className="inline-flex items-center justify-center rounded-full bg-blue-50 px-2 py-1.5 text-[11px] font-semibold text-blue-700 transition-all hover:bg-blue-100"
           >
-            <Pencil size={13} /> Edit
+            <Pencil size={12} />
           </button>
           <button
             type="button"
             onClick={() => completeNote(note)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200/80 bg-emerald-50 px-2.5 py-2 text-xs font-semibold text-emerald-700 transition-all hover:-translate-y-0.5 hover:bg-emerald-100 hover:shadow-sm"
+            title={isComplete ? 'Reopen task' : 'Mark task complete'}
+            aria-label={isComplete ? 'Reopen task' : 'Mark task complete'}
+            className="inline-flex items-center justify-center rounded-full bg-emerald-50 px-2 py-1.5 text-[11px] font-semibold text-emerald-700 transition-all hover:bg-emerald-100"
           >
-            <Check size={13} /> {isComplete ? 'Reopen' : 'Complete'}
+            <Check size={12} />
           </button>
           <button
             type="button"
             onClick={() => setNoteToDelete(note)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-red-200/80 bg-white px-2.5 py-2 text-xs font-semibold text-red-600 transition-all hover:-translate-y-0.5 hover:bg-red-50 hover:shadow-sm"
+            title="Delete task"
+            aria-label="Delete task"
+            className="inline-flex items-center justify-center rounded-full bg-white px-2 py-1.5 text-[11px] font-semibold text-red-600 ring-1 ring-inset ring-red-200/70 transition-all hover:bg-red-50"
           >
-            <Trash2 size={13} /> Delete
+            <Trash2 size={12} />
           </button>
         </div>
       </article>
-    );
-  };
-
-  const NotePagination = ({ page, pageCount, total, onPageChange }) => {
-    if (pageCount <= 1) return null;
-
-    const firstItem = (page - 1) * NOTES_PER_PAGE + 1;
-    const lastItem = Math.min(page * NOTES_PER_PAGE, total);
-
-    return (
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-4 text-xs text-slate-500">
-        <span>
-          Showing {firstItem}-{lastItem} of {total}
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onPageChange(page - 1)}
-            disabled={page === 1}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/90 px-2.5 py-1.5 font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Previous page"
-          >
-            <ChevronLeft size={14} /> Previous
-          </button>
-          <span className="min-w-16 text-center font-medium text-slate-700">
-            Page {page} of {pageCount}
-          </span>
-          <button
-            type="button"
-            onClick={() => onPageChange(page + 1)}
-            disabled={page === pageCount}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/90 px-2.5 py-1.5 font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Next page"
-          >
-            Next <ChevronRight size={14} />
-          </button>
-        </div>
-      </div>
     );
   };
 
@@ -393,18 +450,38 @@ const TaskNotes = () => {
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-brand-600">Workspace</p>
             <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Task Notes</h1>
-            <p className="mt-1 text-sm text-slate-500">Track present amounts, targets, and remaining balances in one focused workspace.</p>
+            <p className="mt-1 text-sm text-slate-500">Track income, expenses, and expected totals in one focused workspace.</p>
           </div>
           <div className="hidden rounded-full border border-slate-200/80 bg-white/70 px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm sm:block">
             {savedNotes.length} total {savedNotes.length === 1 ? 'task' : 'tasks'}
           </div>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatWidget icon={Wallet} label="Present Total" value={activePresentTotal} tint="from-indigo-50 via-white to-blue-50" iconTint="bg-indigo-100 text-indigo-700" />
-          <StatWidget icon={Target} label="Target Total" value={boardTotals.target} tint="from-amber-50 via-white to-orange-50" iconTint="bg-amber-100 text-amber-700" />
-          <StatWidget icon={ClipboardList} label="Remaining Balance" value={activeRemainingTotal} tint="from-emerald-50 via-white to-teal-50" iconTint="bg-emerald-100 text-emerald-700" />
-          <StatWidget icon={Check} label="Completed Tasks Total" value={completedTotals.present} tint="from-sky-50 via-white to-cyan-50" iconTint="bg-sky-100 text-sky-700" />
+        {/* Dashboard metric cards — the four business totals. */}
+        <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {SUMMARY_CARDS.map((card) => (
+            <StatWidget
+              key={card.key}
+              icon={card.icon}
+              label={card.label}
+              value={summary[card.key] ?? 0}
+              tint={card.tint}
+              iconTint={card.iconTint}
+            />
+          ))}
+        </div>
+
+        {/* Live task counts. */}
+        <div className="mb-6 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span className="rounded-full bg-white px-3 py-1.5 font-medium shadow-sm ring-1 ring-inset ring-slate-200">
+            Tasks <strong className="ml-1 font-mono tabular-nums text-slate-800">{summary.counts?.total ?? savedNotes.length}</strong>
+          </span>
+          <span className="rounded-full bg-white px-3 py-1.5 font-medium shadow-sm ring-1 ring-inset ring-slate-200">
+            Pending <strong className="ml-1 font-mono tabular-nums text-slate-800">{summary.counts?.open ?? 0}</strong>
+          </span>
+          <span className="rounded-full bg-white px-3 py-1.5 font-medium shadow-sm ring-1 ring-inset ring-slate-200">
+            Completed <strong className="ml-1 font-mono tabular-nums text-slate-800">{summary.counts?.completed ?? 0}</strong>
+          </span>
         </div>
 
         {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
@@ -415,56 +492,87 @@ const TaskNotes = () => {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-base font-semibold text-slate-900">Add task notes</h2>
-                <p className="mt-1 text-xs text-slate-500">Create one or more tasks. Have auto-calculates as Present minus Target.</p>
+                <p className="mt-1 text-xs text-slate-500">Create one or more tasks. Pick a category and enter the amount.</p>
               </div>
               <span className="hidden rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500 sm:inline-flex">Quick entry</span>
             </div>
           </div>
           <div className="space-y-3 bg-slate-50/40 p-4 sm:p-6">
-            {rows.map((row) => (
-              <div key={row.localId} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm lg:grid-cols-[minmax(0,1.4fr)_160px_160px_160px_44px]">
-                <div className="space-y-2">
-                  <input
-                    value={row.description}
-                    onChange={(event) => updateRow(row.localId, 'description', event.target.value)}
-                    placeholder="Task description"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                  <textarea
-                    value={row.note}
-                    onChange={(event) => updateRow(row.localId, 'note', event.target.value)}
-                    placeholder="Add extra notes or instructions here (optional)..."
-                    rows={2}
-                    maxLength={2000}
-                    className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
+            {rows.map((row, index) => (
+              <div key={row.localId} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Task description</span>
+                      <input
+                        value={row.description}
+                        onChange={(event) => updateTaskRow(index, 'description', event.target.value)}
+                        placeholder="Task description"
+                        className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Note (optional)</span>
+                      <textarea
+                        value={row.note}
+                        onChange={(event) => updateTaskRow(index, 'note', event.target.value)}
+                        placeholder="Add extra notes or instructions here (optional)..."
+                        rows={2}
+                        maxLength={2000}
+                        className="w-full resize-y rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Category + amounts + live Have */}
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Category</span>
+                      <div className="relative">
+                        <select
+                          value={row.category || DEFAULT_CATEGORY}
+                          onChange={(e) => handleCategoryChange(index, e.target.value)}
+                          aria-label="Task category"
+                          title="Task category"
+                          className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 pr-9 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        >
+                          {CATEGORIES.map((category) => (
+                            <option key={category.value} value={category.value}>
+                              {category.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                      </div>
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Amount (₹)</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        required
+                        value={row.presentAmount}
+                        onChange={(event) => updateTaskRow(index, 'presentAmount', event.target.value)}
+                        placeholder="0.00"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-right font-mono text-sm tabular-nums text-slate-900 shadow-sm placeholder:font-sans placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </label>
+                  </div>
                 </div>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  required
-                  value={row.presentAmount}
-                  onChange={(event) => updateRow(row.localId, 'presentAmount', event.target.value)}
-                  placeholder="Present amount"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-right font-mono text-sm tabular-nums placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={row.targetAmount}
-                  onChange={(event) => updateRow(row.localId, 'targetAmount', event.target.value)}
-                  placeholder="Target amount"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-right font-mono text-sm tabular-nums placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                  <span className="text-[11px] uppercase tracking-wide text-slate-400">Have</span>
-                  <span className="font-mono text-sm font-semibold tabular-nums text-brand-700">{formatMoney(rowRemaining(row))}</span>
-                </div>
-                <button type="button" onClick={() => removeRow(row.localId)} className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" title="Delete row">
-                  <Trash2 size={16} />
-                </button>
+                {rows.length > 1 && (
+                  <div className="mt-3 flex justify-end border-t border-slate-200/80 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => removeTaskRow(index)}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      title="Remove this task row"
+                    >
+                      <Trash2 size={13} /> Remove row
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -477,9 +585,7 @@ const TaskNotes = () => {
               <Plus size={16} /> Add New Task Row
             </button>
             <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-              <span>Present: <strong className="font-mono tabular-nums">{formatMoney(composerTotals.present)}</strong></span>
-              <span>Target: <strong className="font-mono tabular-nums">{formatMoney(composerTotals.target)}</strong></span>
-              <span>Have: <strong className="font-mono tabular-nums text-brand-700">{formatMoney(composerTotals.remaining)}</strong></span>
+              <span>Total amount: <strong className="font-mono tabular-nums">{formatMoney(composerTotal)}</strong></span>
             </div>
             <button type="submit" disabled={saving} className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60">
               {saving ? 'Saving...' : 'Save Task Notes'}
@@ -515,58 +621,84 @@ const TaskNotes = () => {
               )}
             </div>
           </div>
+          {/* Group filter tabs — one per category section. */}
+          <div className="mb-4 flex flex-wrap items-center gap-2" role="tablist" aria-label="Filter tasks by category">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={categoryFilter === 'ALL'}
+              onClick={() => setCategoryFilter('ALL')}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                categoryFilter === 'ALL'
+                  ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                  : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              All
+              <span className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${categoryFilter === 'ALL' ? 'bg-white/20' : 'bg-slate-100'}`}>
+                {savedNotes.length}
+              </span>
+            </button>
+            {GROUPS.map((group) => {
+              const active = categoryFilter === group.key;
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setCategoryFilter(group.key)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    active ? `${categoryBadgeClass(group.key)} shadow-sm` : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  {group.label}
+                  <span className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${active ? 'bg-white/60' : 'bg-slate-100'}`}>
+                    {groupCounts[group.key]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
           {loading ? (
             <p className="rounded-xl border border-slate-200/80 bg-white/80 p-5 text-sm text-slate-500 shadow-sm">Loading task notes...</p>
           ) : savedNotes.length === 0 ? (
             <p className="rounded-xl border border-dashed border-slate-300 bg-white/80 p-5 text-sm text-slate-500 shadow-sm">No task notes saved yet.</p>
-          ) : openNotes.length === 0 && completedNotesFiltered.length === 0 ? (
+          ) : visibleTaskCount === 0 ? (
             <p className="rounded-xl border border-dashed border-slate-300 bg-white/80 p-5 text-sm text-slate-500 shadow-sm">
-              No tasks match your search.
+              No tasks match your search or category filter.
             </p>
           ) : (
-            <div className="space-y-8">
-              <div className="rounded-2xl border border-amber-200/60 bg-amber-50/40 p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <CircleDashed size={16} className="text-amber-600" /> Open ({openNotes.length})
+            <div className="space-y-6">
+              {visibleGroups.map((group) => (
+                <section key={group.key} className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm sm:p-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${categoryBadgeClass(group.key)}`}>
+                        {group.label}
+                      </span>
+                      <span className="text-xs text-slate-500">{group.hint}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span className="rounded-full bg-white px-2.5 py-1 font-medium ring-1 ring-inset ring-slate-200">
+                        {group.items.length} {group.items.length === 1 ? 'task' : 'tasks'}
+                      </span>
+                      <span className="font-mono text-sm font-semibold tabular-nums text-slate-900">{formatMoney(group.total)}</span>
+                    </div>
                   </div>
-                  <span className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-200">Active</span>
-                </div>
-                {openNotes.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-amber-200 bg-white/60 p-4 text-sm text-slate-500">No open tasks.</p>
-                ) : (
-                  <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 xl:gap-6">
-                    {visibleOpenNotes.map((note) => (
-                      <NoteCard key={note._id} note={note} />
-                    ))}
-                  </div>
-                )}
-                <NotePagination page={openPage} pageCount={openPageCount} total={openNotes.length} onPageChange={setOpenPage} />
-              </div>
-
-              <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/50 p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <Check size={16} className="text-emerald-600" /> Completed ({completedNotesFiltered.length})
-                  </div>
-                  <span className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">Archived</span>
-                </div>
-                {completedNotesFiltered.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-emerald-200/80 bg-white/70 p-4 text-sm text-slate-500">No completed tasks yet. Completed work will appear here.</p>
-                ) : (
-                  <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 xl:gap-6">
-                    {visibleCompletedNotes.map((note) => (
-                      <NoteCard key={note._id} note={note} />
-                    ))}
-                  </div>
-                )}
-                <NotePagination
-                  page={completedPage}
-                  pageCount={completedPageCount}
-                  total={completedNotesFiltered.length}
-                  onPageChange={setCompletedPage}
-                />
-              </div>
+                  {group.items.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-slate-200 bg-white/70 p-4 text-sm text-slate-500">
+                      No tasks in this category yet.
+                    </p>
+                  ) : (
+                    <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 xl:gap-6">
+                      {group.items.map((note) => (
+                        <NoteCard key={note._id} note={note} />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ))}
             </div>
           )}
         </section>
@@ -588,6 +720,18 @@ const TaskNotes = () => {
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 placeholder="Task description"
               />
+              <select
+                value={editForm.category || DEFAULT_CATEGORY}
+                onChange={(e) => handleEditCategoryChange(e.target.value)}
+                aria-label="Task category"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                {CATEGORIES.map((category) => (
+                  <option key={category.value} value={category.value}>
+                    {category.label}
+                  </option>
+                ))}
+              </select>
               <textarea
                 value={editForm.note}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, note: e.target.value }))}
@@ -604,15 +748,6 @@ const TaskNotes = () => {
                 onChange={(e) => setEditForm((prev) => ({ ...prev, presentAmount: e.target.value }))}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 placeholder="Present amount"
-              />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={editForm.targetAmount}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, targetAmount: e.target.value }))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                placeholder="Target amount"
               />
             </div>
             <div className="mt-5 flex justify-end gap-2">

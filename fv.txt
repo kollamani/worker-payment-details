@@ -1,0 +1,24 @@
+Plus: 2
+Trash2: 3
+Pencil: 2
+Check: 2
+X: 3
+Wallet: 2
+Receipt: 2
+TrendingUp: 2
+TrendingDown: 2
+Search: 4
+ChevronDown: 2
+---- removed things ----
+CATEGORIES: 5
+categoryBadgeClass: 3
+getCategoryDetails: 5
+normalizeCategory: 9
+StatWidget: 2
+NoteCard: 2
+SUMMARY_CARDS: 2
+GROUPS: 4
+visibleGroups: 3
+groupCounts: 2
+composerTotal: 2
+summary: 10

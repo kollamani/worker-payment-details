@@ -1,0 +1,5 @@
+tabs:GROUPS
+sections:GROUPED
+paginationComp:removed
+circleDashed:gone
+visibleTaskCount:yes

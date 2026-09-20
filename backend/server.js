@@ -42,13 +42,6 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Keep this before route registration so Render logs show the exact path
-// reaching the deployed Express process during route troubleshooting.
-app.use((req, res, next) => {
-  console.log(`[request] ${req.method} ${req.originalUrl}`);
-  next();
-});
-
 // Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ success: true, message: 'Financial Ledger API is running' });

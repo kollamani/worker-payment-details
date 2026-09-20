@@ -1,7 +1,25 @@
 const mongoose = require('mongoose');
 
+// Allowed task-note categories. Exported so the controller can validate API
+// payloads against the exact same list used by the schema.
+const TASK_NOTE_CATEGORIES = ['PRESENT_HAVING', 'PRESENT_EXPENSE', 'EXPECTED_INCOME', 'EXPECTED_EXPENSE'];
+const DEFAULT_TASK_NOTE_CATEGORY = 'PRESENT_HAVING';
+
 const TaskNoteSchema = new mongoose.Schema(
   {
+    // Category slice the task belongs to. Strictly standardized uppercase keys
+    // shared with the frontend dropdown. `required` + `default` together keep
+    // legacy documents valid: hydration fills the default before validation.
+    category: {
+      type: String,
+      enum: {
+        values: TASK_NOTE_CATEGORIES,
+        message: `Category must be one of: ${TASK_NOTE_CATEGORIES.join(', ')}`,
+      },
+      required: true,
+      default: DEFAULT_TASK_NOTE_CATEGORY,
+      index: true,
+    },
     description: {
       type: String,
       trim: true,
@@ -18,23 +36,9 @@ const TaskNoteSchema = new mongoose.Schema(
       required: [true, 'Present amount is required'],
       min: [0, 'Present amount cannot be negative'],
     },
-    targetAmount: {
-      type: Number,
-      default: null,
-      min: [0, 'Target amount cannot be negative'],
-    },
-    totalAmount: {
-      type: Number,
-      default: null,
-      min: [0, 'Total amount cannot be negative'],
-    },
     createdAt: {
       type: Date,
       default: Date.now,
-    },
-    remainingBalance: {
-      type: Number,
-      default: 0,
     },
     status: {
       type: String,
@@ -57,4 +61,8 @@ const TaskNoteSchema = new mongoose.Schema(
 
 TaskNoteSchema.index({ createdBy: 1, createdAt: -1 });
 
-module.exports = mongoose.model('TaskNote', TaskNoteSchema);
+const TaskNote = mongoose.model('TaskNote', TaskNoteSchema);
+
+module.exports = TaskNote;
+module.exports.TASK_NOTE_CATEGORIES = TASK_NOTE_CATEGORIES;
+module.exports.DEFAULT_TASK_NOTE_CATEGORY = DEFAULT_TASK_NOTE_CATEGORY;
