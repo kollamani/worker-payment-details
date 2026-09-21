@@ -1,0 +1,71 @@
+ 201:   // Summary metrics returned by the API (local recompute is the fallback).
+ 202:   const [apiSummary, setApiSummary] = useState(null);
+ 203:   // The calculated metrics panel is collapsed on initial load / every visit.
+ 204:   const [showMetrics, setShowMetrics] = useState(false);
+ 205: 
+ 206:   const fetchTaskNotes = async () => {
+ 207:     if (!isAuthenticated) return;
+ 208: 
+ 209:     setLoading(true);
+ 210:     try {
+ 211:       const response = await api.get('/task-notes');
+ 212:       const rawNotes = response.data.taskNotes || response.data || [];
+ 213:       const taskNotes = Array.isArray(rawNotes)
+ 214:         ? rawNotes.map((note) => ({
+ 215:             ...note,
+ 216:             category: normalizeCategory(note.category),
+ 217:           }))
+ 218:         : [];
+ 219:       setSavedNotes(taskNotes);
+ 220:       setApiSummary(response.data?.summary || null);
+ 221:     } catch (err) {
+ 222:       setError(err.response?.data?.message || 'Failed to load task notes');
+ 223:     } finally {
+ 224:       setLoading(false);
+ 225:     }
+ 226:   };
+ 227: 
+ 228:   useEffect(() => {
+ 229:     if (authLoading) return;
+ 230:     if (!isAuthenticated) {
+ 231:       setLoading(false);
+ 232:       setError('Please log in to view task notes.');
+ 233:       return;
+ 234:     }
+ 235:     fetchTaskNotes();
+ 236:   }, [authLoading, isAuthenticated]);
+ 237: 
+ 238:   // Index-based row updater: always writes through a functional state update so
+ 239:   // concurrent edits to different rows (or rapid dropdown changes) can never
+ 240:   // hit a stale `rows` closure — the root cause of dropdown selections being
+ 241:   // lost and tasks silently saving under the default category.
+ 242:   const updateTaskRow = (index, name, value) => {
+ 243:     setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, [name]: value } : row)));
+ 244:   };
+ 245: 
+ 246:   // Dedicated category handler: updates ONLY that row's `category`
+ 247:   // property through a functional state update. Nothing here can reset another
+ 248:   // row, and the value is stored exactly as it arrives from the <select>.
+ 249:   const handleCategoryChange = (index, newCategory) => {
+ 250:     setRows((prevRows) => {
+ 251:       const next = [...prevRows];
+ 252:       next[index] = { ...next[index], category: newCategory };
+ 253:       return next;
+ 254:     });
+ 255:   };
+ 256: 
+ 257:   const handleEditCategoryChange = (newCategory) => {
+ 258:     setEditForm((prev) => ({ ...prev, category: newCategory }));
+ 259:   };
+ 260: 
+ 261:   const removeTaskRow = (index) => {
+ 262:     setRows((current) => (current.length === 1 ? current : current.filter((_, rowIndex) => rowIndex !== index)));
+ 263:   };
+ 264: 
+ 265:   const composerTotal = rows.reduce((sum, row) => sum + Number(row.presentAmount || 0), 0);
+ 266: 
+ 267:   // Prefer the API-computed summary; fall back to the local mirror. Recomputed
+ 268:   // whenever the task list or the API snapshot changes, so every metric on this
+ 269:   // page stays real-time.
+ 270:   const summary = useMemo(() => apiSummary || computeSummary(savedNotes), [apiSummary, savedNotes]);
+ 271: 

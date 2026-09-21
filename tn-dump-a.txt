@@ -1,0 +1,146 @@
+ 495:         <div className="mt-auto grid grid-cols-3 gap-1.5 pt-2.5">
+ 496:           <button
+ 497:             type="button"
+ 498:             onClick={() => openEdit(note)}
+ 499:             title="Edit task"
+ 500:             aria-label="Edit task"
+ 501:             className="inline-flex items-center justify-center rounded-full bg-blue-50 px-2 py-1.5 text-[11px] font-semibold text-blue-700 transition-all hover:bg-blue-100"
+ 502:           >
+ 503:             <Pencil size={12} />
+ 504:           </button>
+ 505:           <button
+ 506:             type="button"
+ 507:             onClick={() => completeNote(note)}
+ 508:             title={isComplete ? 'Reopen task' : 'Mark task complete'}
+ 509:             aria-label={isComplete ? 'Reopen task' : 'Mark task complete'}
+ 510:             className="inline-flex items-center justify-center rounded-full bg-emerald-50 px-2 py-1.5 text-[11px] font-semibold text-emerald-700 transition-all hover:bg-emerald-100"
+ 511:           >
+ 512:             <Check size={12} />
+ 513:           </button>
+ 514:           <button
+ 515:             type="button"
+ 516:             onClick={() => setNoteToDelete(note)}
+ 517:             title="Delete task"
+ 518:             aria-label="Delete task"
+ 519:             className="inline-flex items-center justify-center rounded-full bg-white px-2 py-1.5 text-[11px] font-semibold text-red-600 ring-1 ring-inset ring-red-200/70 transition-all hover:bg-red-50"
+ 520:           >
+ 521:             <Trash2 size={12} />
+ 522:           </button>
+ 523:         </div>
+ 524:       </article>
+ 525:     );
+ 526:   };
+ 527: 
+ 528:   return (
+ 529:     <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(99,102,241,0.08),_transparent_32%),#f8fafc]">
+ 530:       <Navbar />
+ 531:       <main className="mx-auto max-w-[90rem] px-4 py-8 sm:px-6 lg:px-8">
+ 532:         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+ 533:           <div>
+ 534:             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-brand-600">Workspace</p>
+ 535:             <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Task Notes</h1>
+ 536:             <p className="mt-1 text-sm text-slate-500">Track income, expenses, and expected totals in one focused workspace.</p>
+ 537:           </div>
+ 538:           <div className="flex flex-wrap items-center gap-2">
+ 539:             <div className="hidden rounded-full border border-slate-200/80 bg-white/70 px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm sm:block">
+ 540:               {savedNotes.length} total {savedNotes.length === 1 ? 'task' : 'tasks'}
+ 541:             </div>
+ 542:             {/* Toggle for the calculated metrics panel — collapsed by default. */}
+ 543:             <button
+ 544:               type="button"
+ 545:               onClick={() => setShowMetrics((prev) => !prev)}
+ 546:               aria-expanded={showMetrics}
+ 547:               aria-controls={BREAKDOWN_PANEL_ID}
+ 548:               title={showMetrics ? 'Hide the calculated summary metrics' : 'Show the calculated summary metrics'}
+ 549:               className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-white px-3.5 py-2 text-sm font-semibold text-brand-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-50 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+ 550:             >
+ 551:               {showMetrics ? <EyeOff size={16} /> : <Eye size={16} />}
+ 552:               {showMetrics ? 'Hide Summary Metrics' : 'Show Summary Metrics'}
+ 553:               <ChevronDown size={16} className={`transition-transform duration-300 ${showMetrics ? 'rotate-180' : ''}`} />
+ 554:             </button>
+ 555:           </div>
+ 556:         </div>
+ 557: 
+ 558:         {/* Calculated metrics — hidden until the user asks for them. The grid-rows
+ 559:             trick animates the panel open/closed smoothly without a fixed height. */}
+ 560:         <section
+ 561:           id={BREAKDOWN_PANEL_ID}
+ 562:           role="region"
+ 563:           aria-label="Calculated financial summary"
+ 564:           aria-hidden={!showMetrics}
+ 565:           className={`grid transition-all duration-300 ease-out motion-reduce:transition-none ${
+ 566:             showMetrics ? 'grid-rows-[1fr] opacity-100 visible' : 'grid-rows-[0fr] opacity-0 invisible'
+ 567:           }`}
+ 568:         >
+ 569:           <div className="min-h-0 overflow-hidden">
+ 570:             <div className="mb-3 rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm sm:p-5">
+ 571:               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+ 572:                 <div>
+ 573:                   <h2 className="text-sm font-semibold tracking-tight text-slate-900">Financial breakdown</h2>
+ 574:                   <p className="mt-0.5 text-xs text-slate-500">Recalculated in real time from your saved task amounts.</p>
+ 575:                 </div>
+ 576:                 <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+ 577:                   <Eye size={12} />
+ 578:                   Summary metrics
+ 579:                 </span>
+ 580:               </div>
+ 581: 
+ 582:               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+ 583:                 {FINANCIAL_METRIC_CARDS.map((card) => {
+ 584:                   // Coerced once more at the render boundary so a card can never
+ 585:                   // receive NaN/undefined and a shortfall is highlighted in red.
+ 586:                   const value = safeAmount(financialMetrics[card.key]);
+ 587:                   return (
+ 588:                     <StatWidget
+ 589:                       key={card.key}
+ 590:                       icon={card.icon}
+ 591:                       label={card.label}
+ 592:                       value={value}
+ 593:                       tint={card.tint}
+ 594:                       iconTint={card.iconTint}
+ 595:                       formula={card.formula}
+ 596:                       title={card.hint}
+ 597:                       valueTone={card.toneWhenNegative && value < 0 ? 'text-rose-600' : 'text-slate-900'}
+ 598:                     />
+ 599:                   );
+ 600:                 })}
+ 601:               </div>
+ 602: 
+ 603:               {/* Formula legend — makes every number auditable at a glance. */}
+ 604:               <dl className="mt-4 grid grid-cols-1 gap-1.5 border-t border-slate-100 pt-3 text-[11px] sm:grid-cols-2 xl:grid-cols-4">
+ 605:                 {FINANCIAL_METRIC_CARDS.map((card) => (
+ 606:                   <div key={card.key} className="min-w-0">
+ 607:                     <dt className="font-semibold text-slate-600">{card.label}</dt>
+ 608:                     <dd className="truncate font-mono tabular-nums text-slate-500" title={card.formula}>
+ 609:                       {card.formula}
+ 610:                     </dd>
+ 611:                   </div>
+ 612:                 ))}
+ 613:               </dl>
+ 614:             </div>
+ 615:           </div>
+ 616:         </section>
+ 617: 
+ 618:         {/* Dashboard metric cards — the four business totals. */}
+ 619:         <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+ 620:           {SUMMARY_CARDS.map((card) => (
+ 621:             <StatWidget
+ 622:               key={card.key}
+ 623:               icon={card.icon}
+ 624:               label={card.label}
+ 625:               value={summary[card.key] ?? 0}
+ 626:               tint={card.tint}
+ 627:               iconTint={card.iconTint}
+ 628:             />
+ 629:           ))}
+ 630:         </div>
+ 631: 
+ 632:         {/* Live task counts. */}
+ 633:         <div className="mb-6 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+ 634:           <span className="rounded-full bg-white px-3 py-1.5 font-medium shadow-sm ring-1 ring-inset ring-slate-200">
+ 635:             Tasks <strong className="ml-1 font-mono tabular-nums text-slate-800">{summary.counts?.total ?? savedNotes.length}</strong>
+ 636:           </span>
+ 637:           <span className="rounded-full bg-white px-3 py-1.5 font-medium shadow-sm ring-1 ring-inset ring-slate-200">
+ 638:             Pending <strong className="ml-1 font-mono tabular-nums text-slate-800">{summary.counts?.open ?? 0}</strong>
+ 639:           </span>
+ 640:           <span className="rounded-full bg-white px-3 py-1.5 font-medium shadow-sm ring-1 ring-inset ring-slate-200">

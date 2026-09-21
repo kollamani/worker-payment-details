@@ -1,0 +1,114 @@
+  88:   { key: 'PRESENT_EXPENSE', label: 'Present Expense', hint: 'Completed & filed expenses' },
+  89:   { key: 'EXPECTED_INCOME', label: 'Expected Income', hint: 'Pending income' },
+  90:   { key: 'EXPECTED_EXPENSE', label: 'Expected Expense', hint: 'Pending expenses' },
+  91: ];
+  92: 
+  93: const amountOf = (note) => Number(note.presentAmount || 0);
+  94: const isCompleted = (note) => note.status === 'completed';
+  95: 
+  96: // Section a task is displayed under. Completed expense tasks move into the
+  97: // Present Expense group; every other task stays in its own category.
+  98: const displayGroupKey = (note) => {
+  99:   const category = normalizeCategory(note.category);
+ 100:   if (isCompleted(note) && EXPENSE_CATEGORIES.includes(category)) return 'PRESENT_EXPENSE';
+ 101:   return category;
+ 102: };
+ 103: 
+ 104: // Local mirror of the backend summary, used when the API response has no
+ 105: // `summary` payload (older deployments).
+ 106: const computeSummary = (notes) => {
+ 107:   const presentIncome = notes
+ 108:     .filter((note) => INCOME_CATEGORIES.includes(normalizeCategory(note.category)))
+ 109:     .reduce((sum, note) => sum + amountOf(note), 0);
+ 110:   const completed = notes.filter(isCompleted);
+ 111:   const totalExpense = completed.reduce((sum, note) => sum + amountOf(note), 0);
+ 112:   const pendingOf = (category) =>
+ 113:     notes
+ 114:       .filter((note) => !isCompleted(note) && normalizeCategory(note.category) === category)
+ 115:       .reduce((sum, note) => sum + amountOf(note), 0);
+ 116:   const totals = {
+ 117:     totalPresentHaving: presentIncome - totalExpense,
+ 118:     presentIncome,
+ 119:     totalExpense,
+ 120:     totalExpectedIncome: pendingOf('EXPECTED_INCOME'),
+ 121:     totalExpectedExpense: pendingOf('EXPECTED_EXPENSE'),
+ 122:     counts: { total: notes.length, completed: completed.length, open: notes.length - completed.length },
+ 123:   };
+ 124:   // Mirror the backend payload shape exactly, including the four calculated
+ 125:   // breakdown metrics (see utils/financialMetrics.js).
+ 126:   return { ...totals, ...deriveFinancialMetrics(totals) };
+ 127: };
+ 128: 
+ 129: // The four dashboard metric cards required by the business spec.
+ 130: const SUMMARY_CARDS = [
+ 131:   { key: 'totalPresentHaving', label: 'Total Present Having', icon: Wallet, tint: 'from-emerald-50 via-white to-teal-50', iconTint: 'bg-emerald-100 text-emerald-700' },
+ 132:   { key: 'totalExpense', label: 'Total Expense', icon: Receipt, tint: 'from-rose-50 via-white to-pink-50', iconTint: 'bg-rose-100 text-rose-700' },
+ 133:   { key: 'totalExpectedIncome', label: 'Total Expected Income', icon: TrendingUp, tint: 'from-sky-50 via-white to-cyan-50', iconTint: 'bg-sky-100 text-sky-700' },
+ 134:   { key: 'totalExpectedExpense', label: 'Total Expected Expense', icon: TrendingDown, tint: 'from-amber-50 via-white to-orange-50', iconTint: 'bg-amber-100 text-amber-700' },
+ 135: ];
+ 136: 
+ 137: // Anchor id for the collapsible panel (keeps the toggle button's aria-controls
+ 138: // and the panel in sync without magic strings in two places).
+ 139: const BREAKDOWN_PANEL_ID = 'task-notes-financial-breakdown';
+ 140: 
+ 141: // The four calculated breakdown metrics from the business spec. This whole
+ 142: // panel is hidden by default and only rendered visibly once the user expands
+ 143: // it, so the dashboard stays uncluttered on load.
+ 144: const FINANCIAL_METRIC_CARDS = [
+ 145:   {
+ 146:     key: 'havingSavings',
+ 147:     label: 'Having Savings',
+ 148:     formula: 'Present Having − Expected Expense − Present Expense',
+ 149:     hint: 'What is still available after present and expected expenses',
+ 150:     icon: PiggyBank,
+ 151:     tint: 'from-indigo-50 via-white to-sky-50',
+ 152:     iconTint: 'bg-indigo-100 text-indigo-700',
+ 153:     toneWhenNegative: true,
+ 154:   },
+ 155:   {
+ 156:     key: 'overallIncome',
+ 157:     label: 'Overall Income',
+ 158:     formula: 'Present Having + Expected Income',
+ 159:     hint: 'Money already held plus everything still expected in',
+ 160:     icon: Coins,
+ 161:     tint: 'from-emerald-50 via-white to-teal-50',
+ 162:     iconTint: 'bg-emerald-100 text-emerald-700',
+ 163:     toneWhenNegative: false,
+ 164:   },
+ 165:   {
+ 166:     key: 'entireExpense',
+ 167:     label: 'Entire Expense',
+ 168:     formula: 'Expected Expense + Present Expense',
+ 169:     hint: 'Every expected expense plus everything already filed',
+ 170:     icon: ArrowDownCircle,
+ 171:     tint: 'from-rose-50 via-white to-pink-50',
+ 172:     iconTint: 'bg-rose-100 text-rose-700',
+ 173:     toneWhenNegative: false,
+ 174:   },
+ 175:   {
+ 176:     key: 'totalExpectedSavings',
+ 177:     label: 'Total Expected Savings',
+ 178:     formula: 'Overall Income − Entire Expense',
+ 179:     hint: 'Projected balance once every pending item settles',
+ 180:     icon: Scale,
+ 181:     tint: 'from-amber-50 via-white to-orange-50',
+ 182:     iconTint: 'bg-amber-100 text-amber-700',
+ 183:     toneWhenNegative: true,
+ 184:   },
+ 185: ];
+ 186: 
+ 187: const TaskNotes = () => {
+ 188:   const { loading: authLoading, isAuthenticated } = useAuth();
+ 189:   const { showToast } = useToast();
+ 190:   const [rows, setRows] = useState([emptyRow()]);
+ 191:   const [savedNotes, setSavedNotes] = useState([]);
+ 192:   const [loading, setLoading] = useState(true);
+ 193:   const [saving, setSaving] = useState(false);
+ 194:   const [error, setError] = useState('');
+ 195:   const [success, setSuccess] = useState('');
+ 196:   const [editingNote, setEditingNote] = useState(null);
+ 197:   const [editForm, setEditForm] = useState({ description: '', note: '', presentAmount: '', category: DEFAULT_CATEGORY });
+ 198:   const [noteToDelete, setNoteToDelete] = useState(null);
+ 199:   const [search, setSearch] = useState('');
+ 200:   const [categoryFilter, setCategoryFilter] = useState('ALL');
+ 201:   // Summary metrics returned by the API (local recompute is the fallback).

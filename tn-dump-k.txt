@@ -1,0 +1,16 @@
+ 456:     );
+ 457:     return { ...bucket, items, total: items.reduce((sum, note) => sum + amountOfNote(note), 0) };
+ 458:   });
+ 459: 
+ 460:   const visibleBoardCount = boardColumns.reduce((count, column) => count + column.items.length, 0);
+ 461: 
+ 462:   // Keep the board on a single row: 3 priority columns, or 4 when the filed
+ 463:   // expenses column is present.
+ 464:   const boardGridClass = boardColumns.length > 3 ? 'xl:grid-cols-4' : 'xl:grid-cols-3';
+ 465: 
+ 466:   const toggleBucket = (key) => setOpenBuckets((current) => ({ ...current, [key]: !current[key] }));
+ 467: 
+ 468:   const scrollToSavedNotes = () => {
+ 469:     const target = document.getElementById(SAVED_NOTES_ID);
+ 470:     if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+ 471:   };

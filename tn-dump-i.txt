@@ -1,0 +1,110 @@
+ 271: 
+ 272:   // The four calculated breakdown metrics, derived in real time from whichever
+ 273:   // summary is active. Missing buckets resolve to 0 (never NaN).
+ 274:   const financialMetrics = useMemo(() => deriveFinancialMetrics(summary), [summary]);
+ 275: 
+ 276:   // Any local mutation rewrites `savedNotes` without a refetch, which would
+ 277:   // leave the API snapshot stale; dropping it makes `summary` fall back to the
+ 278:   // exact local mirror so the cards always match the visible tasks.
+ 279:   const invalidateApiSummary = () => setApiSummary(null);
+ 280: 
+ 281:   // Task counts per display group (section headers + filter tabs).
+ 282:   const groupCounts = GROUPS.reduce((acc, group) => {
+ 283:     acc[group.key] = savedNotes.filter((note) => displayGroupKey(note) === group.key).length;
+ 284:     return acc;
+ 285:   }, {});
+ 286: 
+ 287: 
+ 288: 
+ 289:   const saveRows = async (event) => {
+ 290:     event.preventDefault();
+ 291:     setError('');
+ 292:     setSuccess('');
+ 293:     const invalidRow = rows.find((row) => !row.description.trim() || row.presentAmount === '' || Number(row.presentAmount) < 0);
+ 294:     if (invalidRow) {
+ 295:       setError('Each task requires a description and a valid present amount.');
+ 296:       return;
+ 297:     }
+ 298: 
+ 299:     setSaving(true);
+ 300:     try {
+ 301:       await Promise.all(
+ 302:         rows.map((row) =>
+ 303:           api.post('/task-notes', {
+ 304:             description: row.description,
+ 305:             note: row.note.trim() || null,
+ 306:             presentAmount: Number(row.presentAmount),
+ 307:             // Map the selected dropdown value explicitly into the request body
+ 308:             // so the chosen category (e.g. EXPECTED_INCOME) persists exactly.
+ 309:             category: normalizeCategory(row.category),
+ 310:           })
+ 311:         )
+ 312:       );
+ 313:       setRows([emptyRow()]);
+ 314:       setSuccess('Task notes saved successfully.');
+ 315:       showToast('Task notes saved successfully.');
+ 316:       await fetchTaskNotes();
+ 317:     } catch (err) {
+ 318:       const message = err.response?.data?.message || 'Failed to save task notes';
+ 319:       setError(message);
+ 320:       showToast(`Action failed: ${message}`, 'error');
+ 321:     } finally {
+ 322:       setSaving(false);
+ 323:     }
+ 324:   };
+ 325: 
+ 326:   const confirmDelete = async () => {
+ 327:     if (!noteToDelete) return;
+ 328:     try {
+ 329:       await api.delete(`/task-notes/${noteToDelete._id}`);
+ 330:       setSavedNotes((current) => current.filter((note) => note._id !== noteToDelete._id));
+ 331:       invalidateApiSummary();
+ 332:       setNoteToDelete(null);
+ 333:       showToast('Task note deleted successfully.');
+ 334:     } catch (err) {
+ 335:       const message = err.response?.data?.message || 'Failed to delete task note';
+ 336:       setError(message);
+ 337:       showToast(`Action failed: ${message}`, 'error');
+ 338:       setNoteToDelete(null);
+ 339:     }
+ 340:   };
+ 341: 
+ 342:   const completeNote = async (note) => {
+ 343:     try {
+ 344:       const res = await api.put(`/task-notes/${note._id}`, { status: note.status === 'completed' ? 'open' : 'completed' });
+ 345:       setSavedNotes((current) => current.map((item) => (item._id === note._id ? res.data.taskNote : item)));
+ 346:       invalidateApiSummary();
+ 347:       showToast(note.status === 'completed' ? 'Task reopened successfully.' : 'Task completed successfully.', 'info');
+ 348:     } catch (err) {
+ 349:       const message = err.response?.data?.message || 'Failed to update task status';
+ 350:       setError(message);
+ 351:       showToast(`Action failed: ${message}`, 'error');
+ 352:     }
+ 353:   };
+ 354: 
+ 355:   const openEdit = (note) => {
+ 356:     setEditingNote(note);
+ 357:     setEditForm({
+ 358:       description: note.description || '',
+ 359:       note: note.note || '',
+ 360:       presentAmount: note.presentAmount ?? '',
+ 361:       category: normalizeCategory(note.category),
+ 362:     });
+ 363:   };
+ 364: 
+ 365:   const saveEdit = async (event) => {
+ 366:     event.preventDefault();
+ 367:     if (!editingNote) return;
+ 368:     if (!editForm.description.trim() || editForm.presentAmount === '' || Number(editForm.presentAmount) < 0) {
+ 369:       setError('Each task requires a description and a valid present amount.');
+ 370:       return;
+ 371:     }
+ 372:     try {
+ 373:       const res = await api.put(`/task-notes/${editingNote._id}`, {
+ 374:         description: editForm.description,
+ 375:         note: editForm.note.trim() || null,
+ 376:         presentAmount: Number(editForm.presentAmount),
+ 377:         category: editForm.category,
+ 378:       });
+ 379:       setSavedNotes((current) => current.map((item) => (item._id === editingNote._id ? res.data.taskNote : item)));
+ 380:       invalidateApiSummary();

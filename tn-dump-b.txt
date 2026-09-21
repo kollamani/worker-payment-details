@@ -1,0 +1,222 @@
+ 641:             Completed <strong className="ml-1 font-mono tabular-nums text-slate-800">{summary.counts?.completed ?? 0}</strong>
+ 642:           </span>
+ 643:         </div>
+ 644: 
+ 645:         {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+ 646:         {success && <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{success}</div>}
+ 647: 
+ 648:         <form onSubmit={saveRows} className="mb-8 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-sm">
+ 649:           <div className="border-b border-slate-100/80 bg-white/70 px-4 py-4 sm:px-6">
+ 650:             <div className="flex items-start justify-between gap-4">
+ 651:               <div>
+ 652:                 <h2 className="text-base font-semibold text-slate-900">Add task notes</h2>
+ 653:                 <p className="mt-1 text-xs text-slate-500">Create one or more tasks. Pick a category and enter the amount.</p>
+ 654:               </div>
+ 655:               <span className="hidden rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500 sm:inline-flex">Quick entry</span>
+ 656:             </div>
+ 657:           </div>
+ 658:           <div className="space-y-3 bg-slate-50/40 p-4 sm:p-6">
+ 659:             {rows.map((row, index) => (
+ 660:               <div key={row.localId} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm">
+ 661:                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+ 662:                   <div className="space-y-3">
+ 663:                     <label className="block">
+ 664:                       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Task description</span>
+ 665:                       <input
+ 666:                         value={row.description}
+ 667:                         onChange={(event) => updateTaskRow(index, 'description', event.target.value)}
+ 668:                         placeholder="Task description"
+ 669:                         className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+ 670:                       />
+ 671:                     </label>
+ 672:                     <label className="block">
+ 673:                       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Note (optional)</span>
+ 674:                       <textarea
+ 675:                         value={row.note}
+ 676:                         onChange={(event) => updateTaskRow(index, 'note', event.target.value)}
+ 677:                         placeholder="Add extra notes or instructions here (optional)..."
+ 678:                         rows={2}
+ 679:                         maxLength={2000}
+ 680:                         className="w-full resize-y rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+ 681:                       />
+ 682:                     </label>
+ 683:                   </div>
+ 684: 
+ 685:                   {/* Category + amounts + live Have */}
+ 686:                   <div className="space-y-3">
+ 687:                     <label className="block">
+ 688:                       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Category</span>
+ 689:                       <div className="relative">
+ 690:                         <select
+ 691:                           value={row.category || DEFAULT_CATEGORY}
+ 692:                           onChange={(e) => handleCategoryChange(index, e.target.value)}
+ 693:                           aria-label="Task category"
+ 694:                           title="Task category"
+ 695:                           className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 pr-9 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+ 696:                         >
+ 697:                           {CATEGORIES.map((category) => (
+ 698:                             <option key={category.value} value={category.value}>
+ 699:                               {category.label}
+ 700:                             </option>
+ 701:                           ))}
+ 702:                         </select>
+ 703:                         <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+ 704:                       </div>
+ 705:                     </label>
+ 706: 
+ 707:                     <label className="block">
+ 708:                       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Amount (₹)</span>
+ 709:                       <input
+ 710:                         type="number"
+ 711:                         min="0"
+ 712:                         step="0.01"
+ 713:                         required
+ 714:                         value={row.presentAmount}
+ 715:                         onChange={(event) => updateTaskRow(index, 'presentAmount', event.target.value)}
+ 716:                         placeholder="0.00"
+ 717:                         className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-right font-mono text-sm tabular-nums text-slate-900 shadow-sm placeholder:font-sans placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+ 718:                       />
+ 719:                     </label>
+ 720:                   </div>
+ 721:                 </div>
+ 722:                 {rows.length > 1 && (
+ 723:                   <div className="mt-3 flex justify-end border-t border-slate-200/80 pt-2">
+ 724:                     <button
+ 725:                       type="button"
+ 726:                       onClick={() => removeTaskRow(index)}
+ 727:                       className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+ 728:                       title="Remove this task row"
+ 729:                     >
+ 730:                       <Trash2 size={13} /> Remove row
+ 731:                     </button>
+ 732:                   </div>
+ 733:                 )}
+ 734:               </div>
+ 735:             ))}
+ 736:           </div>
+ 737:           <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+ 738:             <button
+ 739:               type="button"
+ 740:               onClick={() => setRows((current) => [...current, emptyRow()])}
+ 741:               className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+ 742:             >
+ 743:               <Plus size={16} /> Add New Task Row
+ 744:             </button>
+ 745:             <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+ 746:               <span>Total amount: <strong className="font-mono tabular-nums">{formatMoney(composerTotal)}</strong></span>
+ 747:             </div>
+ 748:             <button type="submit" disabled={saving} className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60">
+ 749:               {saving ? 'Saving...' : 'Save Task Notes'}
+ 750:             </button>
+ 751:           </div>
+ 752:         </form>
+ 753: 
+ 754:         <section>
+ 755:           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+ 756:             <div>
+ 757:               <h2 className="text-lg font-semibold tracking-tight text-slate-900">Saved Task Notes</h2>
+ 758:               <p className="mt-0.5 text-xs text-slate-500">Review, update, and complete your saved work.</p>
+ 759:             </div>
+ 760:             <div className="relative w-full sm:w-72">
+ 761:               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+ 762:               <input
+ 763:                 type="search"
+ 764:                 value={search}
+ 765:                 onChange={(event) => setSearch(event.target.value)}
+ 766:                 placeholder="Search tasks by title, description or amount..."
+ 767:                 aria-label="Search task notes"
+ 768:                 className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-8 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+ 769:               />
+ 770:               {search && (
+ 771:                 <button
+ 772:                   type="button"
+ 773:                   onClick={() => setSearch('')}
+ 774:                   aria-label="Clear search"
+ 775:                   className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+ 776:                 >
+ 777:                   <X size={14} />
+ 778:                 </button>
+ 779:               )}
+ 780:             </div>
+ 781:           </div>
+ 782:           {/* Group filter tabs — one per category section. */}
+ 783:           <div className="mb-4 flex flex-wrap items-center gap-2" role="tablist" aria-label="Filter tasks by category">
+ 784:             <button
+ 785:               type="button"
+ 786:               role="tab"
+ 787:               aria-selected={categoryFilter === 'ALL'}
+ 788:               onClick={() => setCategoryFilter('ALL')}
+ 789:               className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all ${
+ 790:                 categoryFilter === 'ALL'
+ 791:                   ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+ 792:                   : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900'
+ 793:               }`}
+ 794:             >
+ 795:               All
+ 796:               <span className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${categoryFilter === 'ALL' ? 'bg-white/20' : 'bg-slate-100'}`}>
+ 797:                 {savedNotes.length}
+ 798:               </span>
+ 799:             </button>
+ 800:             {GROUPS.map((group) => {
+ 801:               const active = categoryFilter === group.key;
+ 802:               return (
+ 803:                 <button
+ 804:                   key={group.key}
+ 805:                   type="button"
+ 806:                   role="tab"
+ 807:                   aria-selected={active}
+ 808:                   onClick={() => setCategoryFilter(group.key)}
+ 809:                   className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all ${
+ 810:                     active ? `${categoryBadgeClass(group.key)} shadow-sm` : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900'
+ 811:                   }`}
+ 812:                 >
+ 813:                   {group.label}
+ 814:                   <span className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${active ? 'bg-white/60' : 'bg-slate-100'}`}>
+ 815:                     {groupCounts[group.key]}
+ 816:                   </span>
+ 817:                 </button>
+ 818:               );
+ 819:             })}
+ 820:           </div>
+ 821:           {loading ? (
+ 822:             <p className="rounded-xl border border-slate-200/80 bg-white/80 p-5 text-sm text-slate-500 shadow-sm">Loading task notes...</p>
+ 823:           ) : savedNotes.length === 0 ? (
+ 824:             <p className="rounded-xl border border-dashed border-slate-300 bg-white/80 p-5 text-sm text-slate-500 shadow-sm">No task notes saved yet.</p>
+ 825:           ) : visibleTaskCount === 0 ? (
+ 826:             <p className="rounded-xl border border-dashed border-slate-300 bg-white/80 p-5 text-sm text-slate-500 shadow-sm">
+ 827:               No tasks match your search or category filter.
+ 828:             </p>
+ 829:           ) : (
+ 830:             <div className="space-y-6">
+ 831:               {visibleGroups.map((group) => (
+ 832:                 <section key={group.key} className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm sm:p-5">
+ 833:                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+ 834:                     <div className="flex items-center gap-2">
+ 835:                       <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${categoryBadgeClass(group.key)}`}>
+ 836:                         {group.label}
+ 837:                       </span>
+ 838:                       <span className="text-xs text-slate-500">{group.hint}</span>
+ 839:                     </div>
+ 840:                     <div className="flex items-center gap-3 text-xs text-slate-500">
+ 841:                       <span className="rounded-full bg-white px-2.5 py-1 font-medium ring-1 ring-inset ring-slate-200">
+ 842:                         {group.items.length} {group.items.length === 1 ? 'task' : 'tasks'}
+ 843:                       </span>
+ 844:                       <span className="font-mono text-sm font-semibold tabular-nums text-slate-900">{formatMoney(group.total)}</span>
+ 845:                     </div>
+ 846:                   </div>
+ 847:                   {group.items.length === 0 ? (
+ 848:                     <p className="rounded-xl border border-dashed border-slate-200 bg-white/70 p-4 text-sm text-slate-500">
+ 849:                       No tasks in this category yet.
+ 850:                     </p>
+ 851:                   ) : (
+ 852:                     <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 xl:gap-6">
+ 853:                       {group.items.map((note) => (
+ 854:                         <NoteCard key={note._id} note={note} />
+ 855:                       ))}
+ 856:                     </div>
+ 857:                   )}
+ 858:                 </section>
+ 859:               ))}
+ 860:             </div>
+ 861:           )}
+ 862:         </section>

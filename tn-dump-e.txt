@@ -1,0 +1,116 @@
+ 380:       invalidateApiSummary();
+ 381:       setEditingNote(null);
+ 382:       showToast('Task note updated successfully.');
+ 383:     } catch (err) {
+ 384:       const message = err.response?.data?.message || 'Failed to update task note';
+ 385:       setError(message);
+ 386:       showToast(`Action failed: ${message}`, 'error');
+ 387:     }
+ 388:   };
+ 389: 
+ 390:   // Real-time search across description (title), and notes/amount text.
+ 391:   const query = search.trim().toLowerCase();
+ 392:   const matchesSearch = (note) => {
+ 393:     if (!query) return true;
+ 394:     const haystack = [
+ 395:       note.description,
+ 396:       note.note,
+ 397:       categoryLabel(note.category),
+ 398:       String(note.presentAmount ?? ''),
+ 399:       isCompleted(note) ? 'completed' : 'pending',
+ 400:     ]
+ 401:       .filter(Boolean)
+ 402:       .join(' ')
+ 403:       .toLowerCase();
+ 404:     return haystack.includes(query);
+ 405:   };
+ 406: 
+ 407:   // Filter tabs operate on the display groups.
+ 408:   const matchesCategory = (note) => categoryFilter === 'ALL' || displayGroupKey(note) === categoryFilter;
+ 409: 
+ 410:   // Every group carries its own filtered tasks and its own running total.
+ 411:   const visibleGroups = GROUPS
+ 412:     .filter((group) => categoryFilter === 'ALL' || group.key === categoryFilter)
+ 413:     .map((group) => {
+ 414:       const items = savedNotes.filter((note) => displayGroupKey(note) === group.key && matchesSearch(note));
+ 415:       return { ...group, items, total: items.reduce((sum, note) => sum + amountOf(note), 0) };
+ 416:     });
+ 417: 
+ 418:   const visibleTaskCount = visibleGroups.reduce((count, group) => count + group.items.length, 0);
+ 419: 
+ 420:   // Shared metric card. The optional `formula` / `valueTone` props are used by
+ 421:   // the toggleable breakdown panel; the four KPI cards keep the original look.
+ 422:   const StatWidget = ({ icon: Icon, label, value, tint, iconTint, formula, valueTone = 'text-slate-900', title }) => (
+ 423:     <div
+ 424:       title={title}
+ 425:       className={`group rounded-2xl border border-white/70 bg-gradient-to-br p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${tint}`}
+ 426:     >
+ 427:       <div className="flex items-center gap-3">
+ 428:         <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm ring-1 ring-white/80 ${iconTint}`}>
+ 429:           <Icon size={18} strokeWidth={2.2} />
+ 430:         </span>
+ 431:         <div className="min-w-0">
+ 432:           <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+ 433:           <p className={`mt-1 whitespace-nowrap font-mono text-xl font-semibold tabular-nums ${valueTone}`}>{formatMoney(value)}</p>
+ 434:           {formula ? (
+ 435:             <p className="mt-1 truncate text-[10px] font-medium text-slate-400" title={formula}>
+ 436:               {formula}
+ 437:             </p>
+ 438:           ) : null}
+ 439:         </div>
+ 440:       </div>
+ 441:     </div>
+ 442:   );
+ 443: 
+ 444:   const NoteCard = ({ note }) => {
+ 445:     const isComplete = note.status === 'completed';
+ 446:     const groupKey = displayGroupKey(note);
+ 447:     // Per-card category lookup: drives BOTH the badge label and its color, so
+ 448:     // the card always reflects the category persisted for that note.
+ 449:     const categoryDetails = getCategoryDetails(note.category);
+ 450:     return (
+ 451:       <article className="flex aspect-square min-h-[200px] min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white/95 p-3.5 shadow-[0_8px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-xl sm:p-4">
+ 452:         <div className="flex items-start justify-between gap-2">
+ 453:           <p className="line-clamp-2 min-h-[2.5rem] flex-1 text-sm font-semibold leading-5 text-slate-900" title={note.description}>
+ 454:             {note.description}
+ 455:           </p>
+ 456:           <div className="flex shrink-0 flex-col items-end gap-1">
+ 457:             <span
+ 458:               className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-4 ${categoryDetails.colorClass}`}
+ 459:               title={categoryDetails.label}
+ 460:             >
+ 461:               {categoryDetails.label}
+ 462:             </span>
+ 463:             <span
+ 464:               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold leading-4 ring-1 ring-inset ${
+ 465:                 isComplete
+ 466:                   ? 'bg-emerald-100 text-emerald-800 ring-emerald-600/20'
+ 467:                   : 'bg-amber-100 text-amber-800 ring-amber-600/20'
+ 468:               }`}
+ 469:             >
+ 470:               {isComplete ? 'Completed' : 'Open'}
+ 471:             </span>
+ 472:           </div>
+ 473:         </div>
+ 474: 
+ 475:         {/* Optional note + compact date — one tight line to preserve card density */}
+ 476:         <div className="mt-1.5 flex min-h-0 items-center gap-2 text-[11px] leading-4">
+ 477:           {note.note?.trim() ? (
+ 478:             <span className="truncate italic text-slate-500" title={note.note}>
+ 479:               {note.note}
+ 480:             </span>
+ 481:           ) : null}
+ 482:           <span className="ml-auto shrink-0 whitespace-nowrap text-slate-400">
+ 483:             {new Date(note.updatedAt || note.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+ 484:           </span>
+ 485:         </div>
+ 486:         {/* Amount block */}
+ 487:         <div className="mt-2 min-w-0 rounded-lg bg-slate-50 px-2.5 py-2">
+ 488:           <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+ 489:             {isCompleted(note) ? 'Expense (completed)' : 'Amount'}
+ 490:           </p>
+ 491:           <p className="truncate font-mono text-base font-semibold leading-6 tabular-nums text-slate-900">{formatMoney(amountOf(note))}</p>
+ 492:         </div>
+ 493: 
+ 494:         {/* Compact footer actions pinned to the bottom edge */}
+ 495:         <div className="mt-auto grid grid-cols-3 gap-1.5 pt-2.5">

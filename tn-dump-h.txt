@@ -1,0 +1,22 @@
+ 736:           </div>
+ 737:           <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+ 738:             <button
+ 739:               type="button"
+ 740:               onClick={() => setRows((current) => [...current, emptyRow()])}
+ 741:               className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+ 742:             >
+ 743:               <Plus size={16} /> Add New Task Row
+ 744:             </button>
+ 745:             <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+ 746:               <span>Total amount: <strong className="font-mono tabular-nums">{formatMoney(composerTotal)}</strong></span>
+ 747:             </div>
+ 748:             <button type="submit" disabled={saving} className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60">
+ 749:               {saving ? 'Saving...' : 'Save Task Notes'}
+ 750:             </button>
+ 751:           </div>
+ 752:         </form>
+ 753: 
+ 754:         <section>
+ 755:           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+ 756:             <div>
+ 757:               <h2 className="text-lg font-semibold tracking-tight text-slate-900">Saved Task Notes</h2>

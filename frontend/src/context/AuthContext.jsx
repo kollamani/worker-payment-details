@@ -4,11 +4,37 @@ import api from '../api/axios';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
+  // Safe storage access: localStorage does not exist outside the browser
+  // (e.g. an SSR/isolated render), so guard every touch to avoid a hard crash.
+  const safeStorage = {
+    get: (key) => {
+      try {
+        return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+      } catch {
+        return null;
+      }
+    },
+    set: (key, value) => {
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+      } catch {
+        /* storage full / disabled — non-fatal */
+      }
+    },
+    remove: (key) => {
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+      } catch {
+        /* non-fatal */
+      }
+    },
+  };
+
   const [admin, setAdmin] = useState(() => {
-    const stored = localStorage.getItem('ledger_admin');
+    const stored = safeStorage.get('ledger_admin');
     return stored ? JSON.parse(stored) : null;
   });
-  const [token, setToken] = useState(() => localStorage.getItem('ledger_token'));
+  const [token, setToken] = useState(() => safeStorage.get('ledger_token'));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

@@ -1,0 +1,26 @@
+  61:   }
+  62:   return date;
+  63: };
+  64: 
+  65: /** True when the key is a well-formed, real calendar date. */
+  66: export const isValidDateKey = (key) => parseDateKey(key) !== null;
+  67: 
+  68: /** True when the key represents a day after today (LOCAL comparison). */
+  69: export const isFutureDateKey = (key) => {
+  70:   const target = parseDateKey(key);
+  71:   const today = parseDateKey(todayKey());
+  72:   if (!target || !today) return false;
+  73:   return target.getTime() > today.getTime();
+  74: /**
+  75:  * Compact display helper for stored ledger dates — "30 Sept".
+  76:  * Returns an em dash for a missing/invalid value so cards never render
+  77:  * "Invalid Date".
+  78:  */
+  79: export const formatShortDate = (value) => {
+  80:   if (value === null || value === undefined || value === '') return '—';
+  81:   const date = value instanceof Date ? value : new Date(value);
+  82:   if (Number.isNaN(date.getTime())) return '—';
+  83:   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  84: };
+  85: 
+  86: };

@@ -72,3 +72,15 @@ export const isFutureDateKey = (key) => {
   if (!target || !today) return false;
   return target.getTime() > today.getTime();
 };
+
+/**
+ * Compact display helper for stored ledger dates — "30 Sept".
+ * Returns an em dash for a missing/invalid value so cards never render
+ * "Invalid Date".
+ */
+export const formatShortDate = (value) => {
+  if (value === null || value === undefined || value === '') return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+};

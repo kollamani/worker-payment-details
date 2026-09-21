@@ -1,0 +1,54 @@
+
+[1] POST persists the selected category
+  ✓ PRESENT_HAVING saved
+  ✓ PRESENT_EXPENSE saved
+  ✓ EXPECTED_INCOME saved
+  ✓ EXPECTED_EXPENSE saved
+
+[2] POST without category defaults to PRESENT_HAVING (backward compatible)
+  ✓ missing category -> PRESENT_HAVING
+  ✓ null category -> PRESENT_HAVING
+
+[3] POST with an unknown category is rejected
+  ✓ unknown category -> 400
+  ✓ nothing created by the failed request
+
+[4] GET maps every task with its category (KPI source of truth)
+  ✓ returns 200 with all 6 tasks
+  ✓ Total Present Having Amount = 160 (100 + 50 + 10)
+  ✓ Total Present Expense = 30
+  ✓ Total Expected Income = 200
+  ✓ Total Expected Expense = 40
+
+[5] GET ?category= returns only that slice
+  ✓ category filter returns 1 task
+  ✓ invalid category query -> 400
+
+[6] PUT updates the category
+  ✓ category updated to EXPECTED_EXPENSE
+  ✓ amounts untouched by category update
+  ✓ invalid PUT category -> 400
+
+[7] Legacy documents (created before the field existed) map to the default
+  ✓ schema default fills category
+
+[8] Unauthenticated requests are rejected
+  ✓ no token -> 401
+
+[9] PRESENT_EXPENSE round-trips (Savings was replaced by Present Expense)
+  ✓ PRESENT_EXPENSE saved
+  ✓ PRESENT_EXPENSE filter returns exactly 2 tasks
+  ✓ removed SAVINGS category -> 400
+  ✓ nothing created by the rejected SAVINGS request
+
+[10] Summary metrics: a completed task becomes Present Expense
+  ✓ GET returns a summary payload
+  ✓ pending Expected Expense total is tracked
+  ✓ found the pending rent task
+  ✓ Total Expense grows by the completed amount (40)
+  ✓ Total Present Having drops by the completed amount (40)
+  ✓ pending Expected Expense drops by 40
+  ✓ completed count increments
+  ✓ no Target-derived fields are returned
+
+ALL CHECKS PASSED

@@ -9,39 +9,87 @@ const CATEGORY_RULE = `Category must be one of: ${TASK_NOTE_CATEGORIES.join(', '
 const INCOME_CATEGORIES = ['PRESENT_HAVING'];
 
 /**
- * Dashboard summary metrics — single source of truth for the 4 metric cards.
- *   1. totalPresentHaving   = Present Income (PRESENT_HAVING)
- *                             - Present Expense (every COMPLETED task)
- *   2. totalExpense         = every COMPLETED task (Present Expense == completed)
- *   3. totalExpectedIncome  = pending (open) EXPECTED_INCOME tasks
- *   4. totalExpectedExpense = pending (open) EXPECTED_EXPENSE tasks
+ * Null-safe amount reader. Legacy / hand-inserted documents may be missing
+ * `presentAmount`, so a missing or non-numeric value must count as 0 rather
+ * than poisoning every derived total with NaN.
+ */
+const toAmount = (value) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+/**
+ * Dashboard summary metrics — single source of truth for the metric cards and
+ * the toggleable financial-breakdown panel on the frontend.
+ *
+ * Buckets (always derived from the tasks, never stored):
+ *   - Present Having   = PRESENT_HAVING tasks (money currently held)
+ *   - Present Expense  = every COMPLETED task (the expense bucket)
+ *   - Expected Income  = pending (open) EXPECTED_INCOME tasks
+ *   - Expected Expense = pending (open) EXPECTED_EXPENSE tasks
+ *
+ * Metric cards:
+ *   1. totalPresentHaving   = Present Having - Present Expense
+ *   2. totalExpense         = Present Expense
+ *   3. totalExpectedIncome  = Expected Income
+ *   4. totalExpectedExpense = Expected Expense
+ *
+ * Calculated breakdown metrics (hidden by default, one click to reveal):
+ *   5. havingSavings         = Present Having - Expected Expense - Present Expense
+ *   6. overallIncome         = Present Having + Expected Income
+ *   7. entireExpense         = Expected Expense + Present Expense
+ *   8. totalExpectedSavings  = Overall Income - Entire Expense
+ *
+ * Mirrored 1:1 by frontend/src/utils/financialMetrics.js so both sides always
+ * agree.
  */
 const buildTaskSummary = (notes) => {
-  const amountOf = (note) => Number(note.presentAmount || 0);
+  const list = Array.isArray(notes) ? notes : [];
+  const amountOf = (note) => toAmount(note.presentAmount);
   const categoryOf = (note) => note.category || DEFAULT_TASK_NOTE_CATEGORY;
   const isCompleted = (note) => note.status === 'completed';
 
-  const presentIncome = notes
+  const presentIncome = list
     .filter((note) => INCOME_CATEGORIES.includes(categoryOf(note)))
     .reduce((sum, note) => sum + amountOf(note), 0);
 
-  const totalExpense = notes.filter(isCompleted).reduce((sum, note) => sum + amountOf(note), 0);
+  const totalExpense = list.filter(isCompleted).reduce((sum, note) => sum + amountOf(note), 0);
 
   const pendingOf = (category) =>
-    notes
+    list
       .filter((note) => !isCompleted(note) && categoryOf(note) === category)
       .reduce((sum, note) => sum + amountOf(note), 0);
+
+  const totalExpectedIncome = pendingOf('EXPECTED_INCOME');
+  const totalExpectedExpense = pendingOf('EXPECTED_EXPENSE');
+
+  // Calculated breakdown metrics.
+  const havingSavings = presentIncome - totalExpectedExpense - totalExpense;
+  const overallIncome = presentIncome + totalExpectedIncome;
+  const entireExpense = totalExpectedExpense + totalExpense;
+  const totalExpectedSavings = overallIncome - entireExpense;
 
   return {
     totalPresentHaving: presentIncome - totalExpense,
     presentIncome,
     totalExpense,
-    totalExpectedIncome: pendingOf('EXPECTED_INCOME'),
-    totalExpectedExpense: pendingOf('EXPECTED_EXPENSE'),
+    totalExpectedIncome,
+    totalExpectedExpense,
+    // Bucket aliases consumed by the breakdown metrics.
+    presentExpense: totalExpense,
+    expectedExpense: totalExpectedExpense,
+    // 1. Having Savings   = Present Having - Expected Expense - Present Expense
+    // 2. Overall Income   = Present Having + Expected Income
+    // 3. Entire Expense   = Expected Expense + Present Expense
+    // 4. Total Expected Savings = Overall Income - Entire Expense
+    havingSavings,
+    overallIncome,
+    entireExpense,
+    totalExpectedSavings,
     counts: {
-      total: notes.length,
-      completed: notes.filter(isCompleted).length,
-      open: notes.filter((note) => !isCompleted(note)).length,
+      total: list.length,
+      completed: list.filter(isCompleted).length,
+      open: list.filter((note) => !isCompleted(note)).length,
     },
   };
 };

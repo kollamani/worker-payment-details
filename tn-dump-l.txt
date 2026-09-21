@@ -1,0 +1,24 @@
+ 755: 
+ 756:       {editingNote && (
+ 757:         <EditTaskNoteModal
+ 758:           form={editForm}
+ 759:           onChange={(name, value) => setEditForm((prev) => ({ ...prev, [name]: value }))}
+ 760:           onCategoryChange={handleEditCategoryChange}
+ 761:           onSubmit={saveEdit}
+ 762:           onCancel={() => setEditingNote(null)}
+ 763:         />
+ 764:       )}
+ 765: 
+ 766:       <ConfirmModal
+ 767:         open={!!noteToDelete}
+ 768:         title="Delete Task Note"
+ 769:         message={`Are you sure you want to delete "${noteToDelete?.description}"?`}
+ 770:         onConfirm={confirmDelete}
+ 771:         onCancel={() => setNoteToDelete(null)}
+ 772:       />
+ 773:     </div>
+ 774:   );
+ 775: };
+ 776: 
+ 777: export default TaskNotes;
+ 778: 

@@ -1,0 +1,42 @@
+
+[1] No tasks -> every calculated metric is 0 and finite
+  ✓ GET returns the four calculated keys
+  ✓ all four metrics are finite numbers
+  ✓ savings are 0 on an empty ledger
+
+[2] Seed one task per bucket
+  ✓ PRESENT_HAVING created
+  ✓ PRESENT_EXPENSE created
+  ✓ EXPECTED_INCOME created
+  ✓ EXPECTED_EXPENSE created
+  ✓ Present Having bucket = 1000
+  ✓ Present Expense bucket = 200 (completed)
+  ✓ Expected Income bucket = 500 (pending)
+  ✓ Expected Expense bucket = 300 (pending)
+
+[3] The four spec formulas
+  ✓ Having Savings = 1000 - 300 - 200 = 500
+  ✓ Overall Income = 1000 + 500 = 1500
+  ✓ Entire Expense = 300 + 200 = 500
+  ✓ Total Expected Savings = 1500 - 500 = 1000
+  ✓ aliases presentExpense / expectedExpense mirror the buckets
+
+[4] Completing the pending Expected Expense is metric-neutral
+  ✓ Expected Expense bucket drops to 0
+  ✓ Present Expense bucket grows to 500
+  ✓ Having Savings unchanged (500)
+  ✓ Overall Income unchanged (1500)
+  ✓ Entire Expense unchanged (500)
+  ✓ Total Expected Savings unchanged (1000)
+  ✓ existing card totals are untouched
+
+[5] Overspending yields a negative but finite savings balance
+  ✓ Having Savings is negative (-400)
+  ✓ no NaN/Infinity leaks into any metric
+
+[6] Legacy documents missing presentAmount do not poison the totals
+  ✓ legacy summary is finite
+  ✓ missing amounts count as 0
+  ✓ legacy rows are still counted as tasks
+
+ALL CHECKS PASSED
