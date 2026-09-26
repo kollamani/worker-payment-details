@@ -24,7 +24,7 @@ const HistoryActions = ({ transaction, actionLoading, onEdit, onDelete }) => (
       type="button"
       onClick={() => onEdit(transaction)}
       disabled={actionLoading[transaction.id] === 'edit' || actionLoading[transaction.id] === 'delete'}
-      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-60"
+      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-60 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900/60"
     >
       <Pencil size={14} /> {actionLoading[transaction.id] === 'edit' ? 'Saving...' : 'Edit'}
     </button>
@@ -32,7 +32,7 @@ const HistoryActions = ({ transaction, actionLoading, onEdit, onDelete }) => (
       type="button"
       onClick={() => onDelete(transaction)}
       disabled={actionLoading[transaction.id] === 'edit' || actionLoading[transaction.id] === 'delete'}
-      className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+      className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-surface px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
     >
       <Trash2 size={14} /> {actionLoading[transaction.id] === 'delete' ? 'Deleting...' : 'Delete'}
     </button>
@@ -71,17 +71,17 @@ const TransactionHistoryTables = ({
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50/80 px-4 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-emerald-800">Deposit History</h2>
-          <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+      <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm dark:border-emerald-900 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50/80 px-4 py-3 dark:border-emerald-900/70 dark:bg-emerald-950/50">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Deposit History</h2>
+          <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-semibold text-white dark:bg-emerald-500 dark:text-emerald-950">
             {deposits.length} record(s)
           </span>
         </div>
         <div className="overflow-x-auto">
-          {deposits.length === 0 ? emptyMessage('deposit', 'text-emerald-700/70') : (
+          {deposits.length === 0 ? emptyMessage('deposit', 'text-emerald-700/70 dark:text-emerald-400/80') : (
             <table className="min-w-full border-collapse text-sm">
-              <thead className="bg-emerald-700 text-xs uppercase tracking-wide text-white">
+              <thead className="bg-emerald-700 text-xs uppercase tracking-wide text-white dark:bg-emerald-800">
                 <tr>
                   <th className="px-3 py-3 text-left">Date</th>
                   <th className="px-3 py-3 text-right">Raw Deposit Amount</th>
@@ -92,20 +92,20 @@ const TransactionHistoryTables = ({
                   <th className="px-3 py-3 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-emerald-50">
+              <tbody className="divide-y divide-emerald-50 dark:divide-emerald-900/60">
                 {deposits.map((transaction) => {
                   const raw = Number(transaction.originalEnteredAmount ?? transaction.amount ?? 0);
                   const effective = Number(transaction.calculatedAmount ?? transaction.effectiveDepositBalance ?? raw * 0.5);
                   const fee = Number(transaction.extraFee || 0);
                   return (
-                    <tr key={String(transaction.id || transaction._id)} className="table-row-hover hover:bg-emerald-50/60">
-                      <td className="whitespace-nowrap px-3 py-3 text-slate-700">{formatUtcDateDisplay(transaction.date)}</td>
+                    <tr key={String(transaction.id || transaction._id)} className="table-row-hover hover:bg-emerald-50/60 dark:hover:bg-emerald-950/40">
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-700 dark:text-slate-300">{formatUtcDateDisplay(transaction.date)}</td>
                       <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(raw)}</td>
-                      <td className="px-3 py-3 text-right font-mono tabular-nums text-indigo-700">{formatMoney(effective)}</td>
+                      <td className="px-3 py-3 text-right font-mono tabular-nums text-indigo-700 dark:text-indigo-300">{formatMoney(effective)}</td>
                       <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(fee)}</td>
-                      <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums text-emerald-600">{formatMoney(effective + fee)}</td>
+                      <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatMoney(effective + fee)}</td>
                       <td className="px-3 py-3 text-center">
-                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/70 dark:text-emerald-300 dark:ring-emerald-400/30">
                           Deposit
                         </span>
                       </td>
@@ -116,13 +116,13 @@ const TransactionHistoryTables = ({
                   );
                 })}
               </tbody>
-              <tfoot className="border-t-2 border-emerald-100 bg-emerald-50/70 font-semibold">
+              <tfoot className="border-t-2 border-emerald-100 bg-emerald-50/70 font-semibold dark:border-emerald-900 dark:bg-emerald-950/50">
                 <tr>
                   <td className="px-3 py-3">Deposit Sub-Total</td>
                   <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(depositTotals.raw)}</td>
                   <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(depositTotals.effective)}</td>
                   <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(depositTotals.fee)}</td>
-                  <td className="px-3 py-3 text-right font-mono tabular-nums text-emerald-600">{formatMoney(depositTotals.total)}</td>
+                  <td className="px-3 py-3 text-right font-mono tabular-nums text-emerald-600 dark:text-emerald-400">{formatMoney(depositTotals.total)}</td>
                   <td colSpan={2} />
                 </tr>
               </tfoot>
@@ -131,27 +131,27 @@ const TransactionHistoryTables = ({
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-amber-100 bg-amber-50/80 px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
+      <section className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm dark:border-amber-900 dark:bg-slate-900">
+        <div className="flex flex-col gap-3 border-b border-amber-100 bg-amber-50/80 px-4 py-3 sm:flex-row sm:items-end sm:justify-between dark:border-amber-900/70 dark:bg-amber-950/50">
           <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-amber-800">Withdrawal / Received History</h2>
-            <p className="mt-1 text-xs text-amber-800/70">Net Pool Balance = (50% Deposit + Extra Fee) - Total Withdrawals</p>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">Withdrawal / Received History</h2>
+            <p className="mt-1 text-xs text-amber-800/70 dark:text-amber-300/80">Net Pool Balance = (50% Deposit + Extra Fee) - Total Withdrawals</p>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:min-w-[360px]">
-            <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase text-amber-700">Total Withdrawn / Received</p>
-              <p className="font-mono text-lg font-bold tabular-nums text-amber-700">{formatMoney(withdrawalTotal)}</p>
+            <div className="rounded-lg border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-slate-950/60">
+              <p className="text-[11px] font-semibold uppercase text-amber-700 dark:text-amber-300">Total Withdrawn / Received</p>
+              <p className="font-mono text-lg font-bold tabular-nums text-amber-700 dark:text-amber-300">{formatMoney(withdrawalTotal)}</p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase text-slate-500">Remaining Net Balance</p>
-              <p className="font-mono text-lg font-bold tabular-nums text-slate-900">{formatMoney(remainingNetBalance)}</p>
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
+              <p className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">Remaining Net Balance</p>
+              <p className="font-mono text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{formatMoney(remainingNetBalance)}</p>
             </div>
           </div>
         </div>
         <div className="overflow-x-auto">
-          {withdrawals.length === 0 ? emptyMessage('withdrawal / received', 'text-amber-800/70') : (
+          {withdrawals.length === 0 ? emptyMessage('withdrawal / received', 'text-amber-800/70 dark:text-amber-300/80') : (
             <table className="min-w-full border-collapse text-sm">
-              <thead className="bg-amber-600 text-xs uppercase tracking-wide text-white">
+              <thead className="bg-amber-600 text-xs uppercase tracking-wide text-white dark:bg-amber-700">
                 <tr>
                   <th className="px-3 py-3 text-left">Withdrawal Date</th>
                   <th className="px-3 py-3 text-left">Deducted From Deposit Date</th>
@@ -162,22 +162,22 @@ const TransactionHistoryTables = ({
                   <th className="px-3 py-3 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-amber-50">
+              <tbody className="divide-y divide-amber-50 dark:divide-amber-900/60">
                 {withdrawals.map((transaction) => (
-                  <tr key={String(transaction.id || transaction._id)} className="table-row-hover hover:bg-amber-50/60">
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-700">{formatUtcDateDisplay(transaction.date)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">
+                  <tr key={String(transaction.id || transaction._id)} className="table-row-hover hover:bg-amber-50/60 dark:hover:bg-amber-950/40">
+                    <td className="whitespace-nowrap px-3 py-3 text-slate-700 dark:text-slate-300">{formatUtcDateDisplay(transaction.date)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-slate-600 dark:text-slate-400">
                       {transaction.deductFromDepositDate || transaction.sourceDepositDate
                         ? formatUtcDateDisplay(transaction.deductFromDepositDate || transaction.sourceDepositDate)
                         : '—'}
                     </td>
-                    <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums text-amber-600">{formatMoney(transaction.amount)}</td>
+                    <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums text-amber-600 dark:text-amber-400">{formatMoney(transaction.amount)}</td>
                     <td className="px-3 py-3 text-right font-mono tabular-nums">
                       {transaction.remainingBalanceAfterDeduction == null ? '—' : formatMoney(transaction.remainingBalanceAfterDeduction)}
                     </td>
-                    <td className="px-3 py-3 text-slate-600">{transaction.note || '—'}</td>
+                    <td className="px-3 py-3 text-slate-600 dark:text-slate-400">{transaction.note || '—'}</td>
                     <td className="px-3 py-3 text-center">
-                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950/70 dark:text-amber-300 dark:ring-amber-400/30">
                         Received
                       </span>
                     </td>
@@ -187,10 +187,10 @@ const TransactionHistoryTables = ({
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="border-t-2 border-amber-100 bg-amber-50/70 font-semibold">
+              <tfoot className="border-t-2 border-amber-100 bg-amber-50/70 font-semibold dark:border-amber-900 dark:bg-amber-950/50">
                 <tr>
                   <td className="px-3 py-3" colSpan={2}>Withdrawal / Received Sub-Total</td>
-                  <td className="px-3 py-3 text-right font-mono tabular-nums text-amber-600">{formatMoney(withdrawalTotal)}</td>
+                  <td className="px-3 py-3 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400">{formatMoney(withdrawalTotal)}</td>
                   <td colSpan={4} />
                 </tr>
               </tfoot>
@@ -455,34 +455,34 @@ const UserDetail = () => {
   overallTotals.remainingNetBalance = overallTotals.availablePool - overallTotals.receivedTotal;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-canvas">
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <Link to="/users" className="worker-nav-link mb-4 flex w-fit items-center gap-1 text-sm text-brand-700">
+        <Link to="/users" className="worker-nav-link mb-4 flex w-fit items-center gap-1 text-sm text-brand-700 dark:text-brand-400">
           <ArrowLeft size={16} /> Back to user directory
         </Link>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300">
             {success}
           </div>
         )}
 
         {loading ? (
-          <p className="text-slate-500">Loading...</p>
+          <p className="text-slate-500 dark:text-slate-400">Loading...</p>
         ) : data ? (
           <div className="animate-fade-in">
-            <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between">
+            <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between dark:border-slate-800 dark:bg-slate-900">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{data.member.name}</h1>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                  <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">{data.member.jNo}</span>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{data.member.name}</h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">{data.member.jNo}</span>
                   <span>{data.member.villageName || '—'}</span>
                   <span>•</span>
                   <span>Admin: {data.member.createdByWorker || '—'}</span>
@@ -498,31 +498,31 @@ const UserDetail = () => {
                 type="button"
                 onClick={() => setDeleteAllOpen(true)}
                 disabled={sortedTimeline.length === 0 || actionLoading.allTransactions === 'delete'}
-                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/50"
               >
                 <Trash2 size={14} /> Delete All Transactions
               </button>
             </div>
 
-            <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Filter transactions by date range</h2>
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filter transactions by date range</h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">From Date</label>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">From Date</label>
                   <input
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">To Date</label>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">To Date</label>
                   <input
                     type="date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div className="flex items-end gap-2 lg:col-span-2">
@@ -536,7 +536,7 @@ const UserDetail = () => {
                   <button
                     type="button"
                     onClick={clearDateFilter}
-                    className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     Clear
                   </button>
@@ -584,13 +584,13 @@ const UserDetail = () => {
 
         {editingTransaction && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-slate-900 dark:ring-1 dark:ring-slate-700">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-slate-800">Edit Transaction</h3>
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Edit Transaction</h3>
                 <button
                   type="button"
                   onClick={() => setEditingTransaction(null)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                   aria-label="Close edit modal"
                 >
                   <X size={18} />
@@ -598,7 +598,7 @@ const UserDetail = () => {
               </div>
 
               {editingError && (
-                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300">
                   {editingError}
                 </div>
               )}
@@ -606,17 +606,17 @@ const UserDetail = () => {
               <form onSubmit={handleEditSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Date</label>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Date</label>
                     <input
                       type="date"
                       name="date"
                       value={editingForm.date}
                       onChange={handleEditChange}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Amount (₹)</label>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Amount (₹)</label>
                     <input
                       type="number"
                       min="0.01"
@@ -624,29 +624,29 @@ const UserDetail = () => {
                       name="amount"
                       value={editingForm.amount}
                       onChange={handleEditChange}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Type</label>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Type</label>
                   <select
                     name="type"
                     value={editingForm.type}
                     onChange={handleEditChange}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="deposit">Deposit</option>
                     <option value="withdrawal">Withdrawal / Received</option>
                   </select>
                 </div>
 
-                <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/60">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-slate-700">Extra Fee</p>
-                      <p className="text-xs text-slate-500">Add an optional charge to this transaction</p>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Extra Fee</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Add an optional charge to this transaction</p>
                     </div>
                     <label className="relative inline-flex cursor-pointer items-center">
                       <input
@@ -662,14 +662,14 @@ const UserDetail = () => {
                         }
                         className="peer sr-only"
                       />
-                      <span className="h-6 w-11 rounded-full bg-slate-200 transition-colors duration-200 peer-checked:bg-brand-600 peer-focus:outline-none" />
+                      <span className="h-6 w-11 rounded-full bg-slate-200 transition-colors duration-200 peer-checked:bg-brand-600 peer-focus:outline-none dark:bg-slate-700" />
                       <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5" />
                     </label>
                   </div>
 
                   {editingForm.hasExtraFee && (
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="editingExtraFee">
+                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="editingExtraFee">
                         Extra Fee Amount (₹)
                       </label>
                       <input
@@ -680,30 +680,30 @@ const UserDetail = () => {
                         step="0.01"
                         value={editingForm.extraFee}
                         onChange={handleEditChange}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                       />
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Village Name</label>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Village Name</label>
                   <input
                     name="villageName"
                     value={editingForm.villageName}
                     onChange={handleEditChange}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                     placeholder="Village name"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Note</label>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Note</label>
                   <input
                     name="note"
                     value={editingForm.note}
                     onChange={handleEditChange}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                     placeholder="Remarks"
                   />
                 </div>
@@ -712,7 +712,7 @@ const UserDetail = () => {
                   <button
                     type="button"
                     onClick={() => setEditingTransaction(null)}
-                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     Cancel
                   </button>

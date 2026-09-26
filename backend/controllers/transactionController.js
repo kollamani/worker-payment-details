@@ -1,6 +1,8 @@
 const Transaction = require('../models/Transaction');
 const Member = require('../models/Member');
 const mongoose = require('mongoose');
+const { rejectNestedValues } = require('../middleware/sanitize');
+const { exactMatchRegex } = require('../utils/regex');
 const {
   getOriginalEnteredAmount,
   getEffectiveDepositBalance,
@@ -21,14 +23,37 @@ const buildTransactionQuery = (req, extraFilter = {}) => ({ createdBy: req.admin
 // Optional query: ?member=<id>&type=deposit|withdrawal&from=&to=
 const getTransactions = async (req, res, next) => {
   try {
+    // NoSQL-injection guard: `?type[$ne]=deposit` would otherwise become an
+    // operator object inside the Mongoose filter.
+    rejectNestedValues(req.query, 'query');
     const { member, type, from, to } = req.query;
+
+    if (member !== undefined && member !== '' && !mongoose.Types.ObjectId.isValid(member)) {
+      return res.status(400).json({ success: false, message: 'Invalid member id' });
+    }
+    if (type && !['deposit', 'withdrawal'].includes(type)) {
+      return res.status(400).json({ success: false, message: "type must be 'deposit' or 'withdrawal'" });
+    }
+
     const filter = buildTransactionQuery(req);
     if (member) filter.member = member;
     if (type) filter.type = type;
     if (from || to) {
       filter.date = {};
-      if (from) filter.date.$gte = new Date(from);
-      if (to) filter.date.$lte = new Date(to);
+      if (from) {
+        const fromDate = new Date(from);
+        if (Number.isNaN(fromDate.getTime())) {
+          return res.status(400).json({ success: false, message: 'Invalid "from" date' });
+        }
+        filter.date.$gte = fromDate;
+      }
+      if (to) {
+        const toDate = new Date(to);
+        if (Number.isNaN(toDate.getTime())) {
+          return res.status(400).json({ success: false, message: 'Invalid "to" date' });
+        }
+        filter.date.$lte = toDate;
+      }
     }
 
     const transactions = await Transaction.find(filter)
@@ -63,6 +88,12 @@ const createTransaction = async (req, res, next) => {
         success: false,
         message: 'member, type, and amount are required',
       });
+    }
+    if (!mongoose.Types.ObjectId.isValid(member)) {
+      return res.status(400).json({ success: false, message: 'Invalid member id' });
+    }
+    if (sourceDepositId && !mongoose.Types.ObjectId.isValid(sourceDepositId)) {
+      return res.status(400).json({ success: false, message: 'Invalid sourceDepositId' });
     }
 
     // Normalize the transaction date to a canonical UTC-midnight Date for the
@@ -505,6 +536,10 @@ const deleteAllUserTransactions = async (req, res, next) => {
 // are stored.
 const deleteTransactionsByDateRange = async (req, res, next) => {
   try {
+    // NoSQL-injection guard for BOTH sources before merging (query + body).
+    rejectNestedValues(req.query, 'query');
+    rejectNestedValues(req.body, 'body');
+
     const { startDate, endDate, workerId, memberId, worker, village, adminId } = {
       ...req.query,
       ...(req.body || {}),
@@ -550,13 +585,16 @@ const deleteTransactionsByDateRange = async (req, res, next) => {
     // never falling through to an unscoped delete.
     const requestedMemberId = memberId || (workerId && mongoose.Types.ObjectId.isValid(workerId) ? workerId : null);
     if (requestedMemberId) {
+      if (!mongoose.Types.ObjectId.isValid(requestedMemberId)) {
+        return res.status(400).json({ success: false, message: 'Invalid memberId' });
+      }
       filter.member = requestedMemberId;
     } else {
       const workerName = String(worker || workerId || '').trim();
       if (workerName) {
         const matchingMembers = await Member.find(
           buildMemberQuery(req, {
-            createdByWorker: { $regex: new RegExp(`^${workerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            createdByWorker: { $regex: exactMatchRegex(workerName) },
           })
         ).select('_id').lean();
         filter.member = { $in: matchingMembers.map((member) => member._id) };
@@ -565,10 +603,10 @@ const deleteTransactionsByDateRange = async (req, res, next) => {
 
     // Optional village scoping (case-insensitive exact match), mirroring the
     // ledger grid's village filter so the deleted set matches what the user
-    // sees on screen.
+    // sees on screen. Pattern is escaped (regex-injection / ReDoS defence).
     const villageName = String(village || '').trim();
     if (villageName) {
-      filter.villageName = { $regex: new RegExp(`^${villageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') };
+      filter.villageName = { $regex: exactMatchRegex(villageName) };
     }
 
     const result = await Transaction.deleteMany(buildTransactionQuery(req, filter));
@@ -590,21 +628,27 @@ const deleteTransactionsByDateRange = async (req, res, next) => {
 // Builds the main Excel-style ledger grid: members x dates matrix + computed totals
 const getLedgerGrid = async (req, res, next) => {
   try {
+    rejectNestedValues(req.query, 'query');
     const { village = '', worker = '', admin = '' } = req.query;
+    if (typeof village !== 'string' || typeof worker !== 'string' || typeof admin !== 'string') {
+      return res.status(400).json({ success: false, message: 'Invalid filter value' });
+    }
     const adminFilter = String(worker || admin || '').trim();
     const memberFilter = buildMemberQuery(req);
-    if (village) memberFilter.villageName = { $regex: new RegExp(`^${village.trim()}$`, 'i') };
+    // All three patterns are ESCAPED: raw interpolation into RegExp was
+    // regex injection (filter bypass + catastrophic-backtracking ReDoS).
+    if (village.trim()) memberFilter.villageName = { $regex: exactMatchRegex(village.trim()) };
     if (adminFilter) {
       memberFilter.$or = [
-        { admin: { $regex: new RegExp(`^${adminFilter}$`, 'i') } },
-        { createdByWorker: { $regex: new RegExp(`^${adminFilter}$`, 'i') } },
+        { admin: { $regex: exactMatchRegex(adminFilter) } },
+        { createdByWorker: { $regex: exactMatchRegex(adminFilter) } },
       ];
     }
 
     const members = await Member.find(memberFilter).sort({ createdAt: 1 }).lean();
     const memberIds = members.map((m) => m._id);
     const transactionFilter = buildTransactionQuery(req, { member: { $in: memberIds } });
-    if (village) transactionFilter.villageName = { $regex: new RegExp(`^${village.trim()}$`, 'i') };
+    if (village.trim()) transactionFilter.villageName = { $regex: exactMatchRegex(village.trim()) };
 
     const transactions = await Transaction.find(transactionFilter).lean();
 

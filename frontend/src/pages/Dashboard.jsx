@@ -389,14 +389,14 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-canvas">
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">Workers Payments Overview</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">Workers Payments Overview</h1>
+            <p className="mt-1 text-sm text-ink-muted">
               Deposits, received payments and pending balances across every worker and village.
             </p>
           </div>
@@ -404,7 +404,7 @@ const Dashboard = () => {
             <button
               type="button"
               onClick={() => fetchGrid(selectedVillage, selectedWorker)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900"
+              className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink-soft shadow-sm transition-colors hover:bg-subtle hover:text-ink"
             >
               <RefreshCw size={16} /> Refresh
             </button>
@@ -414,8 +414,8 @@ const Dashboard = () => {
               aria-expanded={showAdvancedTools}
               className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold shadow-sm transition-colors duration-200 ${
                 showAdvancedTools
-                  ? 'bg-slate-900 text-white hover:bg-slate-800'
-                  : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  ? 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200'
+                  : 'border border-line bg-surface text-ink-soft hover:bg-subtle'
               }`}
             >
               <SlidersHorizontal
@@ -429,45 +429,45 @@ const Dashboard = () => {
 
         {/* Feedback banners */}
         {error && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
             <AlertTriangle size={16} className="shrink-0" /> {error}
           </div>
         )}
         {successMessage && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
             {successMessage}
           </div>
         )}
 
         {/* Filter & Action Bar */}
-        <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="mb-6 overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
           <div className="p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
               <div className="min-w-[220px] flex-1">
-                <label htmlFor="ledger-search" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                <label htmlFor="ledger-search" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
                   Search
                 </label>
                 <div className="relative">
-                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
                   <input
                     id="ledger-search"
                     value={searchTerm || ''}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Member name, J.No or village…"
-                    className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                    className="w-full rounded-lg border border-line-strong bg-surface py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                   />
                 </div>
               </div>
 
               <div className="w-full lg:w-44">
-                <label htmlFor="filter-village" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                <label htmlFor="filter-village" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
                   Village
                 </label>
                 <select
                   id="filter-village"
                   value={selectedVillage || ''}
                   onChange={(e) => setSelectedVillage(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                 >
                   <option value="">All Villages</option>
                   {(grid?.villages || []).map((village) => (
@@ -479,14 +479,14 @@ const Dashboard = () => {
               </div>
 
               <div className="w-full lg:w-44">
-                <label htmlFor="filter-worker" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                <label htmlFor="filter-worker" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
                   Worker
                 </label>
                 <select
                   id="filter-worker"
                   value={selectedWorker || ''}
                   onChange={(e) => setSelectedWorker(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                 >
                   <option value="">All Workers</option>
                   {workers.map((worker) => (
@@ -498,14 +498,14 @@ const Dashboard = () => {
               </div>
 
               <div className="w-full lg:w-56">
-                <label htmlFor="filter-status" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                <label htmlFor="filter-status" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
                   Status
                 </label>
                 <select
                   id="filter-status"
                   value={transactionStatus}
                   onChange={(e) => setTransactionStatus(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                 >
                   <option value="all">All Users</option>
                   <option value="done">Completed / Done</option>
@@ -517,7 +517,7 @@ const Dashboard = () => {
                 <button
                   type="button"
                   onClick={clearAllFilters}
-                  className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900"
+                  className="rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink-soft shadow-sm transition-colors hover:bg-subtle hover:text-ink"
                 >
                   Clear Filters
                 </button>
@@ -532,36 +532,36 @@ const Dashboard = () => {
             </div>
 
             {showAdvancedTools && (
-              <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 animate-fade-slide-down lg:flex-row lg:items-end">
+              <div className="mt-4 flex flex-col gap-3 border-t border-line/70 pt-4 animate-fade-slide-down lg:flex-row lg:items-end">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                   <div className="w-full sm:w-44">
-                    <label htmlFor="date-from" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <label htmlFor="date-from" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
                       From date
                     </label>
                     <div className="relative">
-                      <CalendarDays size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <CalendarDays size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
                       <input
                         id="date-from"
                         type="date"
                         value={dateFrom}
                         onChange={(e) => setDateFrom(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                        className="w-full rounded-lg border border-line-strong bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                       />
                     </div>
                   </div>
 
                   <div className="w-full sm:w-44">
-                    <label htmlFor="date-to" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <label htmlFor="date-to" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-muted">
                       To date
                     </label>
                     <div className="relative">
-                      <CalendarDays size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <CalendarDays size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
                       <input
                         id="date-to"
                         type="date"
                         value={dateTo}
                         onChange={(e) => setDateTo(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                        className="w-full rounded-lg border border-line-strong bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                       />
                     </div>
                   </div>
@@ -572,7 +572,7 @@ const Dashboard = () => {
                       setDateFrom('');
                       setDateTo('');
                     }}
-                    className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900"
+                    className="rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink-soft shadow-sm transition-colors hover:bg-subtle hover:text-ink"
                   >
                     All Time
                   </button>
@@ -597,7 +597,7 @@ const Dashboard = () => {
                       })
                     }
                     aria-expanded={dangerOpen}
-                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-medium text-red-700 shadow-sm transition-colors hover:bg-red-50"
+                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-surface px-3.5 py-2 text-sm font-medium text-red-700 shadow-sm transition-colors hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
                   >
                     <AlertTriangle size={15} /> Danger Zone
                     <ChevronDown size={14} className={`transition-transform duration-200 ${dangerOpen ? 'rotate-180' : ''}`} />
@@ -606,28 +606,28 @@ const Dashboard = () => {
                   {dangerOpen && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setDangerOpen(false)} />
-                      <div className="absolute right-0 z-20 mt-2 w-80 rounded-xl border border-red-100 bg-white p-4 shadow-xl animate-fade-slide-down">
-                        <p className="text-sm font-semibold text-red-800">Delete transactions by date range</p>
-                        <p className="mt-1 text-xs text-red-600">
+                      <div className="absolute right-0 z-20 mt-2 w-80 rounded-xl border border-red-200 bg-surface p-4 shadow-xl animate-fade-slide-down dark:border-red-900">
+                        <p className="text-sm font-semibold text-red-800 dark:text-red-300">Delete transactions by date range</p>
+                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
                           This permanently removes every transaction in the selected range.
                         </p>
                         <div className="mt-3 grid grid-cols-2 gap-2">
-                          <label className="text-xs font-medium text-slate-600">
+                          <label className="text-xs font-medium text-ink-soft">
                             Start date
                             <input
                               type="date"
                               value={deleteRange.startDate}
                               onChange={(e) => setDeleteRange((prev) => ({ ...prev, startDate: e.target.value }))}
-                              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                              className="mt-1 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                             />
                           </label>
-                          <label className="text-xs font-medium text-slate-600">
+                          <label className="text-xs font-medium text-ink-soft">
                             End date
                             <input
                               type="date"
                               value={deleteRange.endDate}
                               onChange={(e) => setDeleteRange((prev) => ({ ...prev, endDate: e.target.value }))}
-                              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                              className="mt-1 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                             />
                           </label>
                         </div>
@@ -666,13 +666,13 @@ const Dashboard = () => {
         )}
 
         {!loading && filteredRows.length === 0 && !hasDateRange && transactionStatus === 'all' && (
-          <div className="mb-4 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600">
+          <div className="mb-4 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
             No users match the current filters.
           </div>
         )}
 
         {!loading && filteredRows.length === 0 && (hasDateRange || transactionStatus !== 'all') && (
-          <div className="mb-4 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600">
+          <div className="mb-4 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
             {transactionStatus === 'pending'
               ? 'No pending users found for the selected date range.'
               : 'No matching users or transactions found for the selected filters.'}
@@ -680,7 +680,7 @@ const Dashboard = () => {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-16 text-sm text-slate-500 shadow-sm">
+          <div className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-16 text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
             <RefreshCw size={18} className="animate-spin text-brand-500" /> Loading ledger sheet...
           </div>
         ) : (
@@ -695,20 +695,20 @@ const Dashboard = () => {
               selectedDate={''}
             />
 
-            <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   {transactionStatus === 'pending'
                     ? 'Pending Users'
                     : transactionStatus === 'done'
                       ? 'Completed Transactions'
                       : 'All Transactions'}
                 </h2>
-                <span className="text-xs text-slate-400">{rangeTransactions.length} record(s)</span>
+                <span className="text-xs text-slate-500 dark:text-slate-500">{rangeTransactions.length} record(s)</span>
               </div>
 
               {rangeTransactions.length === 0 ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   {transactionStatus === 'pending'
                     ? 'No transactions found for the selected date range, so all matching users are pending.'
                     : 'No transactions found for the selected filters.'}
@@ -721,14 +721,14 @@ const Dashboard = () => {
                     .map((transaction) => (
                       <div
                         key={String(transaction._id)}
-                        className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 bg-slate-50/50 p-3.5 transition-colors hover:border-slate-200 hover:bg-slate-50"
+                        className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 bg-slate-50/50 p-3.5 transition-colors hover:border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-slate-700 dark:hover:bg-slate-800"
                       >
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-900">
+                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                             {transaction.member?.name || 'Member'}{' '}
-                            <span className="font-normal text-slate-400">({transaction.member?.jNo || '—'})</span>
+                            <span className="font-normal text-slate-500 dark:text-slate-500">({transaction.member?.jNo || '—'})</span>
                           </p>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             {new Date(transaction.date).toLocaleDateString('en-IN', {
                               day: '2-digit',
                               month: 'short',
@@ -736,7 +736,7 @@ const Dashboard = () => {
                             })}
                             {transaction.note ? ` • ${transaction.note}` : ''}
                           </p>
-                          <p className="mt-1 font-mono text-[11px] tabular-nums text-slate-400">
+                          <p className="mt-1 font-mono text-[11px] tabular-nums text-slate-500 dark:text-slate-500">
                             Base: ₹{Number(transaction.amount || 0).toLocaleString('en-IN')} • Extra: ₹
                             {Number(transaction.extraFee || 0).toLocaleString('en-IN')} • Total: ₹
                             {(Number(transaction.amount || 0) / 2 + Number(transaction.extraFee || 0)).toLocaleString('en-IN')}
@@ -745,8 +745,8 @@ const Dashboard = () => {
                         <span
                           className={`shrink-0 rounded-full px-2.5 py-1 font-mono text-sm font-semibold tabular-nums ring-1 ring-inset ${
                             transaction.type === 'deposit'
-                              ? 'bg-emerald-50 text-emerald-600 ring-emerald-600/20'
-                              : 'bg-amber-50 text-amber-600 ring-amber-600/20'
+                              ? 'bg-emerald-50 text-emerald-600 ring-emerald-600/20 dark:bg-emerald-950/60 dark:text-emerald-400 dark:ring-emerald-400/30'
+                              : 'bg-amber-50 text-amber-600 ring-amber-600/20 dark:bg-amber-950/60 dark:text-amber-400 dark:ring-amber-400/30'
                           }`}
                         >
                           {transaction.type === 'deposit' ? '+' : '-'}₹

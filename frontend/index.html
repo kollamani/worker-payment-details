@@ -3,9 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8fafc" />
+    <!-- Inter — crisp SaaS typography. system-ui fallback stack keeps the UI
+         readable offline (font-family is set in src/index.css). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <title>Financial Ledger & Transaction Tracker</title>
+    <script>
+      // Apply the persisted theme before the first paint so a page refresh
+      // never flashes the wrong color scheme. Mirrors the resolution logic in
+      // src/context/ThemeContext.jsx (localStorage key: ledger_theme).
+      (function () {
+        try {
+          var stored = localStorage.getItem('ledger_theme');
+          var preference = stored === 'light' || stored === 'dark' ? stored : 'system';
+          var isDark =
+            preference === 'dark' ||
+            (preference === 'system' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var root = document.documentElement;
+          if (isDark) root.classList.add('dark');
+          root.style.colorScheme = isDark ? 'dark' : 'light';
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', isDark ? '#020617' : '#f8fafc');
+        } catch (error) {
+          /* storage blocked — the ThemeProvider still applies a default theme */
+        }
+      })();
+    </script>
   </head>
-  <body class="bg-gray-50">
+  <!-- Body background/text come from src/index.css (theme tokens), not a
+       utility class, so light and dark both resolve correctly. -->
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

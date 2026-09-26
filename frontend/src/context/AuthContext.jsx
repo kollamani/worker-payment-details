@@ -1,5 +1,21 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import { useAutoLogout } from '../hooks/useAutoLogout';
+import IdleWarningModal from '../components/IdleWarningModal';
+
+// Set when the server rejects the token (expired, revoked, forged). The next
+// screen reads it and shows a matching banner; user-initiated logouts and
+// idle timeouts carry their own notice, so this flag belongs to server-side
+// rejections only.
+export const markServerSessionExpired = () => {
+  try {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('ledger_logout_reason', 'expired');
+  } catch {
+    /* non-fatal */
+  }
+};
+
 
 const AuthContext = createContext(null);
 
@@ -32,7 +48,14 @@ export const AuthProvider = ({ children }) => {
 
   const [admin, setAdmin] = useState(() => {
     const stored = safeStorage.get('ledger_admin');
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+    try {
+      return JSON.parse(stored);
+    } catch {
+      // Tampered/corrupt JSON must not crash the app on boot - drop it.
+      safeStorage.remove('ledger_admin');
+      return null;
+    }
   });
   const [token, setToken] = useState(() => safeStorage.get('ledger_token'));
   const [loading, setLoading] = useState(true);
@@ -67,8 +90,8 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
-  const signup = async (username, password, name) => {
-    const res = await api.post('/auth/signup', { username, password, name });
+  const signup = async (username, password, name, inviteCode) => {
+    const res = await api.post('/auth/signup', { username, password, name, inviteCode });
     localStorage.setItem('ledger_token', res.data.token);
     localStorage.setItem('ledger_admin', JSON.stringify(res.data.admin));
     setToken(res.data.token);
@@ -76,16 +99,51 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
-  const logout = () => {
+  const logout = useCallback((reason = '') => {
     localStorage.removeItem('ledger_token');
     localStorage.removeItem('ledger_admin');
     setToken(null);
     setAdmin(null);
-  };
+    // The Login screen shows a matching banner for 'idle' / 'expired'; manual
+    // Navbar logouts leave no trace so the plain form is shown instead.
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        if (reason) sessionStorage.setItem('ledger_logout_reason', reason);
+        else sessionStorage.removeItem('ledger_logout_reason');
+      }
+    } catch {
+      /* non-fatal */
+    }
+  }, []);
+
+  const navigate = useNavigate();
+
+  // ── Auto logout on inactivity ──────────────────────────────────────────
+  // Armed only while a session exists. All wiring lives inside the hook; the
+  // provider just renders the warning dialog and calls the real logout.
+  // `navigate` is in scope because AuthProvider mounts inside BrowserRouter.
+  const handleIdleLogout = useCallback(() => {
+    logout('idle');
+    navigate('/login', { replace: true });
+  }, [logout, navigate]);
+
+  const { warningOpen, secondsLeft, extend } = useAutoLogout({
+    timeoutInMinutes: 10,
+    warningSeconds: 60,
+    enabled: !!token,
+    onLogout: handleIdleLogout,
+  });
 
   return (
     <AuthContext.Provider value={{ admin, token, loading, login, signup, logout, isAuthenticated: !!token }}>
       {children}
+
+      <IdleWarningModal
+        open={warningOpen}
+        secondsLeft={secondsLeft}
+        onStay={extend}
+        onLogoutNow={handleIdleLogout}
+      />
     </AuthContext.Provider>
   );
 };

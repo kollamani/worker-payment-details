@@ -1,7 +1,44 @@
+const mongoose = require('mongoose');
 const TaskNote = require('../models/TaskNote');
-const { TASK_NOTE_CATEGORIES, DEFAULT_TASK_NOTE_CATEGORY } = require('../models/TaskNote');
+const Member = require('../models/Member');
+const {
+  TASK_NOTE_CATEGORIES,
+  DEFAULT_TASK_NOTE_CATEGORY,
+  TASK_NOTE_PRIORITIES,
+  DEFAULT_TASK_NOTE_PRIORITY,
+} = require('../models/TaskNote');
 
 const CATEGORY_RULE = `Category must be one of: ${TASK_NOTE_CATEGORIES.join(', ')}`;
+const PRIORITY_RULE = `Priority must be one of: ${TASK_NOTE_PRIORITIES.join(', ')}`;
+
+/**
+ * Resolves the optional `assignedTo` payload value into a member id that is
+ * owned by the calling admin (or null). Returns `{ value }` on success and
+ * `{ error }` for a malformed / foreign id, so a task can never end up
+ * pointing at another account's worker.
+ */
+const resolveAssignedTo = async (rawValue, adminId) => {
+  if (rawValue === undefined || rawValue === null || rawValue === '') return { value: null };
+  if (!mongoose.Types.ObjectId.isValid(String(rawValue))) {
+    return { error: 'Assigned member must be a valid member id' };
+  }
+  const exists = await Member.exists({ _id: rawValue, createdBy: adminId });
+  if (!exists) return { error: 'Assigned member not found' };
+  return { value: rawValue };
+};
+
+/**
+ * Resolves the optional `reminderAt` payload value into a Date (or null).
+ * Accepts ISO strings / epoch numbers, rejects anything unparseable.
+ */
+const resolveReminderAt = (rawValue) => {
+  if (rawValue === undefined || rawValue === null || rawValue === '') return { value: null };
+  const parsed = new Date(rawValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return { error: 'Reminder must be a valid date and time' };
+  }
+  return { value: parsed };
+};
 
 // Only PRESENT_HAVING represents money currently held. PRESENT_EXPENSE is the
 // expense bucket (its completed tasks reduce the balance), never an income
@@ -124,7 +161,15 @@ const getTaskNotes = async (req, res, next) => {
 
 const createTaskNote = async (req, res, next) => {
   try {
-    const { description, presentAmount, note: requestedNote, category: requestedCategory } = req.body;
+    const {
+      description,
+      presentAmount,
+      note: requestedNote,
+      category: requestedCategory,
+      priority: requestedPriority,
+      assignedTo: requestedAssignedTo,
+      reminderAt: requestedReminderAt,
+    } = req.body;
     const present = Number(presentAmount);
 
     if (!description?.trim()) {
@@ -152,11 +197,34 @@ const createTaskNote = async (req, res, next) => {
       return res.status(400).json({ success: false, message: CATEGORY_RULE });
     }
 
+    // Priority is optional on the wire too: a missing, null or empty value falls
+    // back to MEDIUM, while an explicit unknown value is rejected.
+    const priority =
+      requestedPriority === undefined || requestedPriority === null || requestedPriority === ''
+        ? DEFAULT_TASK_NOTE_PRIORITY
+        : requestedPriority;
+    if (!TASK_NOTE_PRIORITIES.includes(priority)) {
+      return res.status(400).json({ success: false, message: PRIORITY_RULE });
+    }
+
+    const assignment = await resolveAssignedTo(requestedAssignedTo, req.admin._id);
+    if (assignment.error) {
+      return res.status(400).json({ success: false, message: assignment.error });
+    }
+
+    const reminder = resolveReminderAt(requestedReminderAt);
+    if (reminder.error) {
+      return res.status(400).json({ success: false, message: reminder.error });
+    }
+
     const taskNote = await TaskNote.create({
       category,
       description: description.trim(),
       note: note || null,
       presentAmount: present,
+      priority,
+      assignedTo: assignment.value,
+      reminderAt: reminder.value,
       status: 'open',
       createdBy: req.admin._id,
     });
@@ -205,6 +273,29 @@ const updateTaskNote = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'Present amount must be a valid non-negative number' });
       }
       taskNote.presentAmount = present;
+    }
+
+    if (req.body.priority !== undefined) {
+      if (!TASK_NOTE_PRIORITIES.includes(req.body.priority)) {
+        return res.status(400).json({ success: false, message: PRIORITY_RULE });
+      }
+      taskNote.priority = req.body.priority;
+    }
+
+    if (req.body.assignedTo !== undefined) {
+      const assignment = await resolveAssignedTo(req.body.assignedTo, req.admin._id);
+      if (assignment.error) {
+        return res.status(400).json({ success: false, message: assignment.error });
+      }
+      taskNote.assignedTo = assignment.value;
+    }
+
+    if (req.body.reminderAt !== undefined) {
+      const reminder = resolveReminderAt(req.body.reminderAt);
+      if (reminder.error) {
+        return res.status(400).json({ success: false, message: reminder.error });
+      }
+      taskNote.reminderAt = reminder.value;
     }
 
     if (req.body.status !== undefined) {

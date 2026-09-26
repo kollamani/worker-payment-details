@@ -14,7 +14,9 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Not authorized, no token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // algorithms pins the accepted scheme: prevents algorithm-confusion
+    // attacks if the token format ever changes.
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const admin = await Admin.findById(decoded.id).select('-password');
 
     if (!admin) {

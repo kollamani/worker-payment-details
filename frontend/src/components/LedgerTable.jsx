@@ -48,30 +48,30 @@ const LedgerTable = ({
   if (emptyState) {
     if (selectedDate) {
       return (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
+        <div className="rounded-xl border border-dashed border-line-strong bg-surface py-16 text-center text-sm text-ink-muted">
           No user activity or transactions found for {new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}.
         </div>
       );
     }
 
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
+      <div className="rounded-xl border border-dashed border-line-strong bg-surface py-16 text-center text-sm text-ink-muted">
         No workers or transactions yet. Add a worker and record a transaction to see the ledger sheet.
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-200/80 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    <div className="overflow-hidden rounded-xl border border-line/80 bg-surface shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-line/80 bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div>
-          <h2 className="text-base font-semibold tracking-tight text-slate-900">Ledger Sheet</h2>
-          <p className="mt-1 text-xs font-medium text-slate-500">
+          <h2 className="text-base font-semibold tracking-tight text-ink">Ledger Sheet</h2>
+          <p className="mt-1 text-xs font-medium text-ink-muted">
             {visibleRows.length} of {(rows || []).length} workers
             {selectedVillage || selectedWorker ? ' · filtered' : ''}
           </p>
         </div>
-        <p className="w-fit rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-500">
+        <p className="w-fit rounded-full bg-subtle px-3 py-1.5 text-xs font-medium text-ink-muted">
           Click a worker name to view their full payment history.
         </p>
       </div>
@@ -79,21 +79,21 @@ const LedgerTable = ({
       <div className="max-h-[70vh] overflow-x-auto overflow-y-auto">
         <table className="min-w-full table-fixed border-collapse text-sm">
           <thead className="sticky top-0 z-10 shadow-sm">
-            <tr className="bg-slate-100/90 text-[11px] uppercase tracking-[0.12em] text-slate-600">
-              <th className="min-w-[56px] border-b border-slate-200 px-4 py-3.5 text-center font-bold">S.No</th>
-              <th className="min-w-[64px] border-b border-slate-200 px-4 py-3.5 text-center font-bold">J.No</th>
-              <th className="min-w-[180px] border-b border-slate-200 px-4 py-3.5 text-left font-bold">Worker Name</th>
-              <th className="min-w-[120px] border-b border-slate-200 px-4 py-3.5 text-left font-bold">Village</th>
-              <th className="min-w-[140px] border-b border-slate-200 px-4 py-3.5 text-left font-bold">Admin</th>
+            <tr className="bg-subtle/90 text-[11px] uppercase tracking-[0.12em] text-ink-soft">
+              <th className="min-w-[56px] border-b border-line px-4 py-3.5 text-center font-bold">S.No</th>
+              <th className="min-w-[64px] border-b border-line px-4 py-3.5 text-center font-bold">J.No</th>
+              <th className="min-w-[180px] border-b border-line px-4 py-3.5 text-left font-bold">Worker Name</th>
+              <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-left font-bold">Village</th>
+              <th className="min-w-[140px] border-b border-line px-4 py-3.5 text-left font-bold">Admin</th>
               {dates.map((d) => (
-                <th key={d} className="min-w-[92px] border-b border-slate-200 px-4 py-3.5 text-center font-bold">
+                <th key={d} className="min-w-[92px] border-b border-line px-4 py-3.5 text-center font-bold">
                   {formatDateHeader(d)}
                 </th>
               ))}
-              <th className="min-w-[120px] border-b border-slate-200 px-4 py-3.5 text-right font-bold">Total Deposit</th>
-              <th className="min-w-[120px] border-b border-slate-200 px-4 py-3.5 text-right font-bold">Half Amount</th>
-              <th className="min-w-[120px] border-b border-slate-200 px-4 py-3.5 text-right font-bold">Received</th>
-              <th className="min-w-[140px] border-b border-slate-200 px-4 py-3.5 text-right font-bold">Deposit Balance</th>
+              <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-right font-bold">Total Deposit</th>
+              <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-right font-bold">Half Amount</th>
+              <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-right font-bold">Received</th>
+              <th className="min-w-[140px] border-b border-line px-4 py-3.5 text-right font-bold">Deposit Balance</th>
             </tr>
           </thead>
 
@@ -101,29 +101,29 @@ const LedgerTable = ({
             {visibleRows.map((row, idx) => (
               <tr
                 key={row.memberId}
-                className={`table-row-hover border-b border-slate-100 hover:bg-blue-50/60 ${
-                  idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'
+                className={`table-row-hover border-b border-line/70 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 ${
+                  idx % 2 === 1 ? 'bg-subtle/50' : 'bg-surface'
                 }`}
               >
-                <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle tabular-nums text-slate-500">
-                  {row.sNo || <span className="text-slate-300">—</span>}
+                <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle tabular-nums text-ink-muted">
+                  {row.sNo || <span className="text-ink-faint">—</span>}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle tabular-nums text-slate-500">
-                  {row.jNo || <span className="text-slate-300">—</span>}
+                <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle tabular-nums text-ink-muted">
+                  {row.jNo || <span className="text-ink-faint">—</span>}
                 </td>
                 <td className="px-4 py-3.5 text-left align-middle">
                   <Link
                     to={`/users/${row.memberId}`}
-                    className="worker-nav-link cursor-pointer font-semibold text-brand-700"
+                    className="worker-nav-link cursor-pointer font-semibold text-brand-700 dark:text-brand-400"
                   >
-                    {row.workerName ?? row.name ?? <span className="text-slate-300">—</span>}
+                    {row.workerName ?? row.name ?? <span className="text-ink-faint">—</span>}
                   </Link>
                 </td>
-                <td className="px-4 py-3.5 text-left align-middle text-slate-600">
-                  {row.villageName || <span className="text-slate-300">—</span>}
+                <td className="px-4 py-3.5 text-left align-middle text-ink-soft">
+                  {row.villageName || <span className="text-ink-faint">—</span>}
                 </td>
-                <td className="px-4 py-3.5 text-left align-middle text-slate-600">
-                  {row.admin ?? row.createdByWorker ?? <span className="text-slate-300">—</span>}
+                <td className="px-4 py-3.5 text-left align-middle text-ink-soft">
+                  {row.admin ?? row.createdByWorker ?? <span className="text-ink-faint">—</span>}
                 </td>
 
                 {dates.map((d) => {
@@ -135,29 +135,29 @@ const LedgerTable = ({
                       {hasData ? (
                         <div className="flex flex-col items-end gap-0.5 font-mono tabular-nums leading-tight">
                           {cell.deposit > 0 && (
-                            <span className="font-medium text-emerald-600">+{formatMoney(cell.deposit)}</span>
+                            <span className="font-medium text-emerald-600 dark:text-emerald-400">+{formatMoney(cell.deposit)}</span>
                           )}
                           {cell.withdrawal > 0 && (
-                            <span className="text-xs text-amber-600">-{formatMoney(cell.withdrawal)}</span>
+                            <span className="text-xs text-amber-600 dark:text-amber-400">-{formatMoney(cell.withdrawal)}</span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-slate-300">—</span>
+                        <span className="text-ink-faint">—</span>
                       )}
                     </td>
                   );
                 })}
 
-                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-medium tabular-nums text-slate-900">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-medium tabular-nums text-ink">
                   {formatMoney(row.totalDeposited)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono tabular-nums text-orange-500">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono tabular-nums text-orange-500 dark:text-orange-400">
                   {formatMoney(row.halfAmount)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-emerald-600">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
                   {formatMoney(row.totalWithdrawn)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-amber-600">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-amber-600 dark:text-amber-400">
                   {formatMoney(row.pendingBalance)}
                 </td>
               </tr>
@@ -166,7 +166,7 @@ const LedgerTable = ({
 
           {displayTotals && (
             <tfoot>
-              <tr className="border-t-2 border-slate-200 bg-slate-100/80 font-semibold text-slate-900">
+              <tr className="border-t-2 border-line bg-subtle/80 font-semibold text-ink">
                 <td className="px-4 py-3.5 text-left align-middle" colSpan={5}>
                   {selectedVillage || selectedWorker
                     ? `${selectedVillage || ''}${selectedVillage && selectedWorker ? ' / ' : ''}${selectedWorker || ''} Totals`
@@ -178,13 +178,13 @@ const LedgerTable = ({
                 <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono tabular-nums">
                   {formatMoney(displayTotals.totalDeposited)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono tabular-nums text-slate-600">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono tabular-nums text-ink-soft">
                   {formatMoney(displayTotals.halfAmount)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-emerald-600">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
                   {formatMoney(displayTotals.totalWithdrawn)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-amber-600">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-amber-600 dark:text-amber-400">
                   {formatMoney(displayTotals.pendingBalance)}
                 </td>
               </tr>

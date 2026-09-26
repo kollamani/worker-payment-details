@@ -6,10 +6,10 @@
 //   column    — the board column id this category is rendered under.
 //   colorClass— badge colors; accent — sparkline/indicator color.
 export const CATEGORIES = [
-  { value: 'PRESENT_HAVING', label: 'Present Saving', formLabel: 'Present Saving', column: 'current-savings', colorClass: 'bg-blue-100 text-blue-700 border-blue-300', dotClass: 'bg-blue-500', accent: '#2563EB' },
-  { value: 'PRESENT_EXPENSE', label: 'Present Expense', formLabel: 'Expense', column: 'filed-expenses', colorClass: 'bg-rose-100 text-rose-700 border-rose-300', dotClass: 'bg-rose-500', accent: '#E11D48' },
-  { value: 'EXPECTED_INCOME', label: 'Expected Income', formLabel: 'Planned Income', column: 'planned-income', colorClass: 'bg-green-100 text-green-700 border-green-300', dotClass: 'bg-emerald-500', accent: '#059669' },
-  { value: 'EXPECTED_EXPENSE', label: 'Expected Expense', formLabel: 'Planned Expenses', column: 'planned-expenses', colorClass: 'bg-red-100 text-red-700 border-red-300', dotClass: 'bg-amber-500', accent: '#F59E0B' },
+  { value: 'PRESENT_HAVING', label: 'Present Saving', formLabel: 'Present Saving', column: 'current-savings', colorClass: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800', dotClass: 'bg-blue-500', accent: '#2563EB' },
+  { value: 'PRESENT_EXPENSE', label: 'Present Expense', formLabel: 'Expense', column: 'filed-expenses', colorClass: 'bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800', dotClass: 'bg-rose-500', accent: '#E11D48' },
+  { value: 'EXPECTED_INCOME', label: 'Expected Income', formLabel: 'Planned Income', column: 'planned-income', colorClass: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-950 dark:text-green-300 dark:border-green-800', dotClass: 'bg-emerald-500', accent: '#059669' },
+  { value: 'EXPECTED_EXPENSE', label: 'Expected Expense', formLabel: 'Planned Expenses', column: 'planned-expenses', colorClass: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-300 dark:border-red-800', dotClass: 'bg-amber-500', accent: '#F59E0B' },
 ];
 
 export const DEFAULT_CATEGORY = 'PRESENT_HAVING';

@@ -7,7 +7,7 @@ const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen text-gray-500">
+      <div className="flex items-center justify-center h-screen bg-canvas text-ink-muted" role="status" aria-live="polite">
         Loading...
       </div>
     );

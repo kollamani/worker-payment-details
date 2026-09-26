@@ -1,0 +1,28 @@
+# Do not commit secrets. `.env` files are read by dotenv at runtime; the values
+# in `.env.example` must be placeholders only.
+#
+# IMPORTANT: backend/.env and frontend/.env are currently TRACKED in this git
+# repository, so ignoring them here is not enough. Rotate the exposed MongoDB
+# Atlas password and JWT secret, then stop tracking them:
+#
+#   git rm --cached backend/.env frontend/.env
+#   git commit -m "chore(security): stop tracking local env files"
+#
+# frontend/.env.production holds only the public API origin and is intentionally
+# kept in the repository (Vite inlines VITE_* values into the bundle at build
+# time, so never put a secret in a VITE_* variable).
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# Dependencies and build output (tracked copies already in this repo need
+# `git rm -r --cached frontend/node_modules frontend/dist` to take effect).
+node_modules/
+dist/
+.vite/
+
+# Local audit artefacts
+.tmp-*
+*-out.txt

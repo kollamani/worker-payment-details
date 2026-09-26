@@ -30,34 +30,36 @@ const validate = (form) => {
   return errors;
 };
 
+// Token-driven input chrome: surface fill + line-strong border in light mode,
+// slate-900 fill + slate-700 border in dark mode, same focus treatment both ways.
 const baseInput =
-  'w-full rounded-xl border bg-white px-3.5 py-2.5 pl-10 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition-all duration-150 hover:border-slate-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
-const okInput = 'border-slate-300';
-const errInput = 'border-red-400 focus:border-red-500 focus:ring-red-500/15';
+  'w-full rounded-xl border bg-surface px-3.5 py-2.5 pl-10 text-sm text-ink placeholder:text-ink-faint shadow-sm transition-all duration-150 hover:border-line-strong focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/15 disabled:cursor-not-allowed disabled:bg-subtle disabled:text-ink-faint';
+const okInput = 'border-line-strong';
+const errInput = 'border-red-400 focus:border-red-500 focus:ring-red-500/15 dark:border-red-500/70';
 
 const Field = ({ id, label, required, optional, icon: Icon, error, hint, children }) => (
   <div>
-    <label htmlFor={id} className="mb-1.5 flex items-baseline justify-between text-sm font-medium text-slate-700">
+    <label htmlFor={id} className="mb-1.5 flex items-baseline justify-between text-sm font-medium text-ink-soft">
       <span>
         {label}
-        {required && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}
+        {required && <span className="ml-1 text-red-500 dark:text-red-400" aria-hidden="true">*</span>}
       </span>
       {optional && (
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">optional</span>
+        <span className="rounded-full bg-subtle px-2 py-0.5 text-[11px] font-medium text-ink-muted">optional</span>
       )}
     </label>
     <div className="relative">
       {Icon && (
-        <Icon size={16} className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 ${error ? 'text-red-400' : 'text-slate-400'}`} />
+        <Icon size={16} className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 ${error ? 'text-red-400 dark:text-red-400' : 'text-ink-faint'}`} />
       )}
       {children}
     </div>
     {error ? (
-      <p role="alert" className="mt-1.5 flex items-center gap-1 text-xs font-medium text-red-600">
+      <p role="alert" className="mt-1.5 flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
         <AlertCircle size={13} className="shrink-0" /> {error}
       </p>
     ) : hint ? (
-      <p className="mt-1.5 text-xs text-slate-400">{hint}</p>
+      <p className="mt-1.5 text-xs text-ink-muted">{hint}</p>
     ) : null}
   </div>
 );
@@ -127,11 +129,11 @@ const MemberForm = ({ open, initialData, onSubmit, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm animate-fade-in dark:bg-black/60"
       onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
       role="dialog" aria-modal="true" aria-labelledby="member-form-title"
     >
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
         <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-brand-900 via-brand-700 to-brand-600 px-6 pb-5 pt-6 text-white">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
@@ -150,7 +152,7 @@ const MemberForm = ({ open, initialData, onSubmit, onClose }) => {
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4 px-6 py-6">
           {serverError && (
-            <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
+            <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
               <AlertCircle size={16} className="mt-0.5 shrink-0" /><span>{serverError}</span>
             </div>
           )}
@@ -181,12 +183,12 @@ const MemberForm = ({ open, initialData, onSubmit, onClose }) => {
               disabled={saving} autoComplete="tel" className={`${inputFor('phone')} font-mono tabular-nums`} placeholder="+91 98765 43210" />
           </Field>
           <div>
-            <label htmlFor="member-notes" className="mb-1.5 flex items-baseline justify-between text-sm font-medium text-slate-700">
+            <label htmlFor="member-notes" className="mb-1.5 flex items-baseline justify-between text-sm font-medium text-ink-soft">
               <span>Notes</span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">optional</span>
+              <span className="rounded-full bg-subtle px-2 py-0.5 text-[11px] font-medium text-ink-muted">optional</span>
             </label>
             <div className="relative">
-              <StickyNote size={16} className="pointer-events-none absolute left-3 top-3 text-slate-400" />
+              <StickyNote size={16} className="pointer-events-none absolute left-3 top-3 text-ink-faint" />
               <textarea id="member-notes" name="notes" value={form.notes} onChange={handleChange} disabled={saving}
                 rows={2} className={`${inputFor('notes')} resize-none !pl-10`} placeholder="Any remarks about this worker…" />
             </div>
@@ -194,7 +196,7 @@ const MemberForm = ({ open, initialData, onSubmit, onClose }) => {
 
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
             <button type="button" onClick={onClose} disabled={saving}
-              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200 disabled:opacity-60">
+              className="rounded-xl border border-line-strong bg-surface px-5 py-2.5 text-sm font-medium text-ink-soft shadow-sm hover:bg-subtle focus:outline-none focus:ring-4 focus:ring-subtle disabled:opacity-60">
               Cancel
             </button>
             <button type="submit" disabled={saving}

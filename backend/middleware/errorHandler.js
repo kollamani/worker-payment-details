@@ -1,17 +1,26 @@
 const notFound = (req, res, next) => {
-  res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
+  res.status(404).json({ success: false, message: 'Route not found' });
 };
 
+/*
+ * Central error handler - hardened against information disclosure.
+ *
+ *  - Internal (5xx) messages are NEVER sent to clients: raw Mongoose/driver
+ *    errors can leak collection names, connection details or query shapes.
+ *  - CastError no longer echoes the attacker-supplied value back
+ *    (`Invalid ID format: <input>` was a reflection/probing oracle).
+ *  - Stack traces are only attached outside production, for local debugging.
+ */
 const errorHandler = (err, req, res, next) => {
   console.error(err.stack);
 
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Server Error';
 
-  // Mongoose bad ObjectId
+  // Mongoose bad ObjectId - generic message, do not echo the input value.
   if (err.name === 'CastError') {
     statusCode = 400;
-    message = `Invalid ID format: ${err.value}`;
+    message = 'Invalid ID format';
   }
 
   // Mongoose duplicate key
@@ -21,7 +30,8 @@ const errorHandler = (err, req, res, next) => {
     message = `Duplicate value for field: ${field}`;
   }
 
-  // Mongoose validation error
+  // Mongoose validation error (messages are authored by our own schemas -
+  // safe to return).
   if (err.name === 'ValidationError') {
     statusCode = 400;
     message = Object.values(err.errors)
@@ -29,10 +39,15 @@ const errorHandler = (err, req, res, next) => {
       .join(', ');
   }
 
+  // Never expose internal error details on 5xx responses.
+  if (statusCode >= 500) {
+    message = 'Server Error';
+  }
+
   res.status(statusCode).json({
     success: false,
     message,
-    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
+    ...(process.env.NODE_ENV === 'production' ? {} : { stack: err.stack }),
   });
 };
 

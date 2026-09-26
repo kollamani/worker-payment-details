@@ -4,12 +4,12 @@ import { CATEGORY_FORM_OPTIONS, DEFAULT_CATEGORY, amountOfNote, getCategoryDetai
 import { formatINR } from '../../utils/financialMetrics';
 import { formatShortDate } from '../../utils/dates';
 
-const backdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm';
-const panel = 'w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6';
-const closeButton = 'rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700';
+const backdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm dark:bg-black/60';
+const panel = 'w-full rounded-2xl border border-line bg-surface p-5 shadow-2xl sm:p-6';
+const closeButton = 'rounded-lg p-1 text-ink-muted transition-colors hover:bg-subtle hover:text-ink-soft';
 const inputBox =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
-const labelText = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500';
+  'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
+const labelText = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted';
 
 /** Read-only "View details" modal opened from a task card's eye action. */
 export const TaskDetailModal = ({ note, onClose, onEdit, onDelete, onToggleComplete }) => {
@@ -29,8 +29,8 @@ export const TaskDetailModal = ({ note, onClose, onEdit, onDelete, onToggleCompl
       <div className={`${panel} max-w-lg`} onClick={(event) => event.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-600">Task details</p>
-            <h3 className="mt-1 truncate text-lg font-semibold tracking-tight text-slate-900" title={note.description}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-400">Task details</p>
+            <h3 className="mt-1 truncate text-lg font-semibold tracking-tight text-ink" title={note.description}>
               {note.description}
             </h3>
           </div>
@@ -43,20 +43,22 @@ export const TaskDetailModal = ({ note, onClose, onEdit, onDelete, onToggleCompl
           <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${details.colorClass}`}>{details.label}</span>
           <span
             className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${
-              complete ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-amber-50 text-amber-700 ring-amber-600/20'
+              complete
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-400/20'
+                : 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-400/20'
             }`}
           >
             {complete ? 'Completed' : 'Open'}
           </span>
         </div>
 
-        <p className="mt-4 font-mono text-3xl font-bold tabular-nums text-slate-900">{formatINR(amountOfNote(note))}</p>
+        <p className="mt-4 font-mono text-3xl font-bold tabular-nums text-ink">{formatINR(amountOfNote(note))}</p>
 
-        <dl className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-100">
+        <dl className="mt-4 divide-y divide-line/70 overflow-hidden rounded-xl border border-line/70">
           {rows.map((row) => (
             <div key={row.label} className="flex items-center justify-between gap-3 px-3 py-2">
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{row.label}</dt>
-              <dd className={`truncate text-xs font-semibold text-slate-700 ${row.mono ? 'font-mono tabular-nums' : ''}`}>
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{row.label}</dt>
+              <dd className={`truncate text-xs font-semibold text-ink-soft ${row.mono ? 'font-mono tabular-nums' : ''}`}>
                 {row.value}
               </dd>
             </div>
@@ -64,21 +66,21 @@ export const TaskDetailModal = ({ note, onClose, onEdit, onDelete, onToggleCompl
         </dl>
 
         {note.note?.trim() ? (
-          <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs italic leading-5 text-slate-600">{note.note}</p>
+          <p className="mt-3 rounded-xl bg-subtle p-3 text-xs italic leading-5 text-ink-soft">{note.note}</p>
         ) : null}
 
         <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => { onDelete(note); onClose(); }}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 px-3.5 py-2 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 px-3.5 py-2 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50 dark:border-rose-900 dark:text-rose-400 dark:hover:bg-rose-950"
           >
             <Trash2 size={15} /> Delete
           </button>
           <button
             type="button"
             onClick={() => onToggleComplete(note)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3.5 py-2 text-sm font-semibold text-ink-soft transition-colors hover:bg-subtle hover:text-ink"
           >
             <Check size={15} /> {complete ? 'Reopen' : 'Mark complete'}
           </button>

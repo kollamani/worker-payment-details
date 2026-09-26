@@ -8,25 +8,25 @@ const TOAST_THEMES = {
   success: {
     title: 'Success',
     Icon: CheckCircle2,
-    badgeClass: 'bg-emerald-100',
-    iconClass: 'text-emerald-600',
-    borderClass: 'border-emerald-200',
+    badgeClass: 'bg-emerald-100 dark:bg-emerald-950',
+    iconClass: 'text-emerald-600 dark:text-emerald-400',
+    borderClass: 'border-emerald-200 dark:border-emerald-900',
     barClass: 'bg-emerald-500',
   },
   error: {
     title: 'Action Failed',
     Icon: XCircle,
-    badgeClass: 'bg-red-100',
-    iconClass: 'text-red-600',
-    borderClass: 'border-red-200',
+    badgeClass: 'bg-red-100 dark:bg-red-950',
+    iconClass: 'text-red-600 dark:text-red-400',
+    borderClass: 'border-red-200 dark:border-red-900',
     barClass: 'bg-red-500',
   },
   info: {
     title: 'Notification',
     Icon: Info,
-    badgeClass: 'bg-indigo-100',
-    iconClass: 'text-indigo-600',
-    borderClass: 'border-indigo-200',
+    badgeClass: 'bg-indigo-100 dark:bg-indigo-950',
+    iconClass: 'text-indigo-600 dark:text-indigo-400',
+    borderClass: 'border-indigo-200 dark:border-indigo-900',
     barClass: 'bg-indigo-500',
   },
 };
@@ -86,29 +86,29 @@ export const ToastProvider = ({ children }) => {
       {children}
 
       {toast && theme && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px] dark:bg-black/65">
           <div
             role={toast.type === 'error' ? 'alertdialog' : 'dialog'}
             aria-modal="true"
-            className={`w-full max-w-md overflow-hidden rounded-2xl border bg-white shadow-2xl animate-toast-pop ${theme.borderClass}`}
+            className={`w-full max-w-md overflow-hidden rounded-2xl border bg-surface shadow-2xl animate-toast-pop ${theme.borderClass}`}
           >
             <div className="flex flex-col items-center px-6 pb-5 pt-7 text-center">
               <div className={`flex h-16 w-16 items-center justify-center rounded-full ${theme.badgeClass}`}>
                 <ThemeIcon size={36} strokeWidth={2} className={theme.iconClass} />
               </div>
-              <h2 className="mt-4 text-lg font-semibold tracking-tight text-slate-900">{toast.title}</h2>
-              <p className="mt-1.5 break-words text-sm leading-relaxed text-slate-600">{toast.message}</p>
+              <h2 className="mt-4 text-lg font-semibold tracking-tight text-ink">{toast.title}</h2>
+              <p className="mt-1.5 break-words text-sm leading-relaxed text-ink-soft">{toast.message}</p>
               <button
                 type="button"
                 onClick={hideToast}
-                className="mt-5 inline-flex min-w-32 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700"
+                className="mt-5 inline-flex min-w-32 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
                 aria-label="Close notification"
               >
                 OK <X size={15} />
               </button>
             </div>
             {/* Countdown bar: visually tracks the 3s auto-dismiss. */}
-            <div className="h-1 w-full bg-slate-100">
+            <div className="h-1 w-full bg-subtle">
               <div className={`h-full animate-toast-timer ${theme.barClass}`} />
             </div>
           </div>

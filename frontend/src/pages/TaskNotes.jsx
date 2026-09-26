@@ -44,9 +44,9 @@ class PageSafe extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
+        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm dark:border-red-900 dark:bg-red-950/60 dark:text-red-300">
           <p className="font-semibold">Something went wrong in this section.</p>
-          <pre className="mt-2 max-h-40 overflow-auto text-xs font-mono text-red-600">{String(this.state.error)}</pre>
+          <pre className="mt-2 max-h-40 overflow-auto text-xs font-mono text-red-600 dark:text-red-400">{String(this.state.error)}</pre>
         </div>
       );
     }
@@ -99,8 +99,8 @@ const TOP_CARDS = [
     label: 'Current Savings',
     formula: 'All "Present Saving" tasks',
     icon: PiggyBank,
-    tint: 'from-indigo-50 via-white to-sky-50',
-    iconTint: 'bg-indigo-100 text-indigo-700',
+    tint: 'from-indigo-50 via-white to-sky-50 dark:from-indigo-950 dark:via-slate-900 dark:to-sky-950',
+    iconTint: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300',
     stroke: '#6366f1',
     seriesKey: 'currentSavings',
   },
@@ -109,8 +109,8 @@ const TOP_CARDS = [
     label: 'Spend Expense',
     formula: 'All "Present Expense" tasks',
     icon: Receipt,
-    tint: 'from-rose-50 via-white to-pink-50',
-    iconTint: 'bg-rose-100 text-rose-700',
+    tint: 'from-rose-50 via-white to-pink-50 dark:from-rose-950 dark:via-slate-900 dark:to-pink-950',
+    iconTint: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
     stroke: '#e11d48',
     seriesKey: 'spendExpense',
   },
@@ -119,8 +119,8 @@ const TOP_CARDS = [
     label: 'Planned Income',
     formula: 'All "Expected Income" tasks',
     icon: TrendingUp,
-    tint: 'from-emerald-50 via-white to-teal-50',
-    iconTint: 'bg-emerald-100 text-emerald-700',
+    tint: 'from-emerald-50 via-white to-teal-50 dark:from-emerald-950 dark:via-slate-900 dark:to-teal-950',
+    iconTint: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
     stroke: '#059669',
     seriesKey: 'plannedIncome',
   },
@@ -129,8 +129,8 @@ const TOP_CARDS = [
     label: 'Planned Expense',
     formula: 'All "Expected Expense" tasks',
     icon: TrendingDown,
-    tint: 'from-amber-50 via-white to-orange-50',
-    iconTint: 'bg-amber-100 text-amber-700',
+    tint: 'from-amber-50 via-white to-orange-50 dark:from-amber-950 dark:via-slate-900 dark:to-orange-950',
+    iconTint: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
     stroke: '#d97706',
     seriesKey: 'plannedExpense',
   },
@@ -215,6 +215,12 @@ const TaskNotes = () => {
   const [success, setSuccess] = useState('');
   const [editingNote, setEditingNote] = useState(null);
   const [editForm, setEditForm] = useState({ description: '', note: '', presentAmount: '', category: DEFAULT_CATEGORY });
+  // Inline validation / API error for the edit modal. The page-level `error`
+  // banner is painted BEHIND the modal overlay, so failures must be surfaced
+  // inside the dialog itself.
+  const [editError, setEditError] = useState('');
+  // In-flight PUT guard: disables the fields + Save and blocks double submits.
+  const [savingEdit, setSavingEdit] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -371,6 +377,11 @@ const TaskNotes = () => {
         note: note || null,
         presentAmount,
         category,
+        // Premium composer extras — all optional on the API, all persisted so
+        // the priority pill / assignee / reminder survive a page refresh.
+        priority: payload.priority || undefined,
+        assignedTo: payload.assignedTo || null,
+        reminderAt: payload.reminderAt || null,
       });
       // Optimistic append → every summary card (including Spend Expense, via
       // the expense-family sum) updates instantly, then re-fetch so the API's
@@ -402,38 +413,77 @@ const TaskNotes = () => {
     }
   };
 
-  const openEdit = (note) => {
-    setEditingNote(note);
-    setEditForm({
-      description: note.description || '',
-      note: note.note || '',
-      presentAmount: note.presentAmount ?? '',
-      category: normalizeCategory(note.category),
-    });
-  };
+  const EMPTY_EDIT_FORM = { description: '', note: '', presentAmount: '', category: DEFAULT_CATEGORY };
 
-  const saveEdit = async (event) => {
-    event.preventDefault();
-    if (!editingNote) return;
-    if (!editForm.description.trim() || editForm.presentAmount === '' || Number(editForm.presentAmount) < 0) {
-      setError('Each task requires a description and a valid present amount.');
+  // Prefill helper. Keeping this in one place guarantees the draft always has
+  // every key the modal binds to, so no input can ever flip to uncontrolled.
+  const toEditForm = (note) => ({
+    description: note?.description || '',
+    note: note?.note || '',
+    presentAmount: note?.presentAmount ?? '',
+    category: normalizeCategory(note?.category),
+  });
+
+  const openEdit = (note) => {
+    if (!note) {
+      // Nothing to prefill from - show a readable message instead of an empty form.
+      setEditingNote({ _id: null, __missing: true });
+      setEditForm(EMPTY_EDIT_FORM);
+      setEditError('This task could not be loaded for editing. Close this dialog and try again.');
       return;
     }
+    setEditError('');
+    setEditingNote(note);
+    setEditForm(toEditForm(note));
+  };
+
+  const closeEdit = () => {
+    if (savingEdit) return; // don't let a pending save be interrupted
+    setEditingNote(null);
+    setEditError('');
+    setEditForm(EMPTY_EDIT_FORM);
+  };
+
+  const saveEdit = async (submitEvent) => {
+    // The modal forwards the REAL DOM submit event. Tolerate a bare draft object
+    // too, so a future prop-shape change can never re-introduce the
+    // "preventDefault is not a function" crash / native form navigation.
+    if (typeof submitEvent?.preventDefault === 'function') submitEvent.preventDefault();
+    if (savingEdit || !editingNote || editingNote.__missing) return;
+
+    const description = String(editForm.description || '').trim();
+    const presentAmount = Number(editForm.presentAmount);
+
+    if (!description) {
+      setEditError('Task description is required.');
+      return;
+    }
+    if (editForm.presentAmount === '' || !Number.isFinite(presentAmount) || presentAmount < 0) {
+      setEditError('Present amount must be a valid non-negative number.');
+      return;
+    }
+
+    setSavingEdit(true);
+    setEditError('');
     try {
       const res = await api.put(`/task-notes/${editingNote._id}`, {
-        description: editForm.description,
-        note: editForm.note.trim() || null,
-        presentAmount: Number(editForm.presentAmount),
+        description,
+        note: String(editForm.note || '').trim() || null,
+        presentAmount,
         category: editForm.category,
       });
       setSavedNotes((current) => current.map((item) => (item._id === editingNote._id ? res.data.taskNote : item)));
       invalidateApiSummary();
       setEditingNote(null);
+      setEditForm(EMPTY_EDIT_FORM);
       showToast('Task note updated successfully.');
     } catch (err) {
       const message = err.response?.data?.message || 'Failed to update task note';
+      setEditError(message);
       setError(message);
       showToast(`Action failed: ${message}`, 'error');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -489,10 +539,6 @@ const TaskNotes = () => {
 
   const visibleBoardCount = boardColumns.reduce((count, column) => count + column.items.length, 0);
 
-  // Keep the board on a single row: 3 priority columns, or 4 when the filed
-  // expenses column is present.
-  const boardGridClass = boardColumns.length > 3 ? 'xl:grid-cols-4' : 'xl:grid-cols-3';
-
   const toggleBucket = (key) => setOpenBuckets((current) => ({ ...current, [key]: !current[key] }));
 
   const openDetails = (note) => setViewNote(note);
@@ -512,27 +558,27 @@ const TaskNotes = () => {
 
   return (
     <PageSafe>
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-canvas">
       <Navbar />
 
       <main className="mx-auto max-w-[90rem] px-4 py-8 sm:px-6 lg:px-8">
         {/* 1. Workspace breadcrumb, title and header controls ------------------ */}
         <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
               <span>Workspace</span>
               <ChevronRight size={12} aria-hidden="true" />
-              <span className="text-brand-600">Task Notes</span>
+              <span className="text-brand-600 dark:text-brand-400">Task Notes</span>
             </nav>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Task Notes</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 sm:text-3xl">Task Notes</h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Track income, expenses, and expected totals in your focused workspace.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm">
-              <ClipboardList size={13} className="text-brand-600" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+              <ClipboardList size={13} className="text-brand-600 dark:text-brand-400" aria-hidden="true" />
               <span className="font-mono tabular-nums">{savedNotes.length}</span>
               total {savedNotes.length === 1 ? 'task' : 'tasks'}
             </span>
@@ -553,8 +599,8 @@ const TaskNotes = () => {
         <section className="mb-8" aria-label="Financial summary">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="text-sm font-semibold tracking-tight text-slate-900">Financial overview</h2>
-                <p className="mt-0.5 text-xs text-slate-500">Recalculated in real time from your saved task amounts.</p>
+                <h2 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Financial overview</h2>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Recalculated in real time from your saved task amounts.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -566,7 +612,7 @@ const TaskNotes = () => {
                   className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
                     showFutures
                       ? 'border-indigo-500 bg-gradient-to-br from-indigo-600 to-indigo-700 text-white hover:from-indigo-500 hover:to-indigo-600'
-                      : 'border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50'
+                      : 'border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:bg-slate-900 dark:text-indigo-300 dark:hover:bg-slate-800'
                   }`}
                 >
                   <Sparkles size={16} aria-hidden="true" />
@@ -601,10 +647,10 @@ const TaskNotes = () => {
           <FuturesGrid open={showFutures} panelId={FUTURES_PANEL_ID}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-sm font-semibold tracking-tight text-slate-900">Futures</h3>
-                <p className="mt-0.5 text-xs text-slate-500">Projected totals once every planned item settles.</p>
+                <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Futures</h3>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Projected totals once every planned item settles.</p>
               </div>
-              <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-medium text-indigo-700">
+              <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
                 {FUTURES_CARDS.length} projections
               </span>
             </div>
@@ -625,12 +671,12 @@ const TaskNotes = () => {
         </section>
 
         {error && (
-          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm font-medium text-rose-700">
+          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm font-medium text-rose-700 dark:border-rose-900 dark:bg-rose-950/60 dark:text-rose-300">
             {error}
           </div>
         )}
         {success && (
-          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-700">
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300">
             {success}
           </div>
         )}
@@ -639,27 +685,27 @@ const TaskNotes = () => {
         <section id={SAVED_NOTES_ID} className="mb-10 scroll-mt-24">
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-lg font-semibold tracking-tight text-slate-900">Saved Task Notes</h2>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">Saved Task Notes</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                 {visibleBoardCount} {visibleBoardCount === 1 ? 'task' : 'tasks'} on the board · grouped by priority bucket.
               </p>
             </div>
             <div className="relative w-full lg:w-80">
-              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <input
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search task by title, description..."
                 aria-label="Search task notes"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-8 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-8 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:ring-brand-500/30"
               />
               {search && (
                 <button
                   type="button"
                   onClick={() => setSearch('')}
                   aria-label="Clear search"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                 >
                   <X size={14} />
                 </button>
@@ -676,12 +722,12 @@ const TaskNotes = () => {
               onClick={() => setCategoryFilter('ALL')}
               className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 categoryFilter === 'ALL'
-                  ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
-                  : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900'
+                  ? 'border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
+                  : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
               }`}
             >
               All
-              <span className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${categoryFilter === 'ALL' ? 'bg-white/20' : 'bg-slate-100'}`}>
+              <span className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${categoryFilter === 'ALL' ? 'bg-white/20 dark:bg-slate-900/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
                 {savedNotes.length}
               </span>
             </button>
@@ -695,11 +741,11 @@ const TaskNotes = () => {
                   aria-selected={active}
                   onClick={() => setCategoryFilter(group.key)}
                   className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                    active ? `${categoryBadgeClass(group.key)} shadow-sm` : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900'
+                    active ? `${categoryBadgeClass(group.key)} shadow-sm` : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                   }`}
                 >
                   {group.label}
-                  <span className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${active ? 'bg-white/60' : 'bg-slate-100'}`}>
+                  <span className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${active ? 'bg-white/60 dark:bg-slate-900/40' : 'bg-slate-100 dark:bg-slate-800'}`}>
                     {groupCounts[group.key]}
                   </span>
                 </button>
@@ -708,19 +754,22 @@ const TaskNotes = () => {
           </div>
 
           {loading ? (
-            <p className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
+            <p className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
               Loading task notes...
             </p>
           ) : savedNotes.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+            <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
               No task notes saved yet. Add your first task above.
             </p>
           ) : visibleBoardCount === 0 ? (
-            <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+            <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
               No tasks match your search or filters.
             </p>
           ) : (
-            <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${boardGridClass}`}>
+            /* Dashboard layout: each category is a full-width section stacked
+               vertically (flex-col); the cards inside each section run
+               horizontally - see TaskBoardColumn's overflow-x-auto strip. */
+            <div className="flex flex-col gap-4">
               {boardColumns.map((column) => (
                 <TaskBoardColumn
                   key={column.key}
@@ -777,10 +826,12 @@ const TaskNotes = () => {
       {editingNote && (
         <EditTaskNoteModal
           form={editForm}
+          error={editError}
+          saving={savingEdit}
           onChange={(name, value) => setEditForm((prev) => ({ ...prev, [name]: value }))}
           onCategoryChange={handleEditCategoryChange}
           onSubmit={saveEdit}
-          onCancel={() => setEditingNote(null)}
+          onCancel={closeEdit}
         />
       )}
 

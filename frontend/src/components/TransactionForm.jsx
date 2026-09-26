@@ -8,7 +8,7 @@ const formatMoney = (v) =>
   `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const inputClass = (focus) =>
-  `w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${focus}`;
+  `w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 ${focus}`;
 
 const TransactionForm = ({ members, onSubmit }) => {
   const { showToast } = useToast();
@@ -82,10 +82,10 @@ const TransactionForm = ({ members, onSubmit }) => {
 
   if (!form.type) {
     return (
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-4 pb-5 pt-5 sm:px-6 sm:pt-6">
-          <h2 className="text-lg font-semibold tracking-tight text-slate-900">Choose a workflow</h2>
-          <p className="mt-1 text-sm text-slate-500">
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+        <div className="border-b border-line/70 px-4 pb-5 pt-5 sm:px-6 sm:pt-6">
+          <h2 className="text-lg font-semibold tracking-tight text-ink">Choose a workflow</h2>
+          <p className="mt-1 text-sm text-ink-muted">
             Pick an action to open a fully themed form. Deposit adds to the 50% pool; Received pays out from it.
           </p>
         </div>
@@ -93,31 +93,31 @@ const TransactionForm = ({ members, onSubmit }) => {
           <button
             type="button"
             onClick={() => selectType('deposit')}
-            className="group rounded-2xl border-2 border-emerald-100 bg-emerald-50/70 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 hover:shadow-md sm:p-6"
+            className="group rounded-2xl border-2 border-emerald-100 bg-emerald-50/70 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 hover:shadow-md dark:border-emerald-900 dark:bg-emerald-950/60 dark:hover:border-emerald-700 dark:hover:bg-emerald-950 sm:p-6"
           >
             <span className="inline-flex rounded-xl bg-emerald-600 p-3 text-white shadow-sm transition-transform group-hover:scale-105">
               <Wallet size={24} />
             </span>
-            <span className="mt-4 block text-lg font-semibold text-emerald-900">Deposit Cash</span>
-            <span className="mt-1.5 block text-sm leading-relaxed text-emerald-800/75">
+            <span className="mt-4 block text-lg font-semibold text-emerald-900 dark:text-emerald-200">Deposit Cash</span>
+            <span className="mt-1.5 block text-sm leading-relaxed text-emerald-800/75 dark:text-emerald-300/80">
               Log cash collected from a member. 50% of the amount becomes available deposit balance, with an optional extra fee.
             </span>
           </button>
           <button
             type="button"
             onClick={() => selectType('withdrawal')}
-            className="group rounded-2xl border-2 border-amber-100 bg-amber-50/70 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-50 hover:shadow-md sm:p-6"
+            className="group rounded-2xl border-2 border-amber-100 bg-amber-50/70 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-50 hover:shadow-md dark:border-amber-900 dark:bg-amber-950/60 dark:hover:border-amber-700 dark:hover:bg-amber-950 sm:p-6"
           >
             <span className="inline-flex rounded-xl bg-amber-500 p-3 text-white shadow-sm transition-transform group-hover:scale-105">
               <HandCoins size={24} />
             </span>
-            <span className="mt-4 block text-lg font-semibold text-amber-900">Withdraw / Received</span>
-            <span className="mt-1.5 block text-sm leading-relaxed text-amber-800/75">
+            <span className="mt-4 block text-lg font-semibold text-amber-900 dark:text-amber-200">Withdraw / Received</span>
+            <span className="mt-1.5 block text-sm leading-relaxed text-amber-800/75 dark:text-amber-300/80">
               Pay out from the available 50% pool. Remaining deposit balance is checked live against the selected member.
             </span>
           </button>
         </div>
-        <p className="border-t border-slate-100 bg-slate-50/80 px-4 py-3 text-xs text-slate-500 sm:px-6">
+        <p className="border-t border-line/70 bg-subtle/70 px-4 py-3 text-xs text-ink-muted sm:px-6">
           Transaction date always defaults to today&apos;s local date ({todayKey()}) and is submitted as a plain YYYY-MM-DD key.
         </p>
       </div>
@@ -243,26 +243,26 @@ const TransactionForm = ({ members, onSubmit }) => {
 
   const theme = isDeposit
     ? {
-        shell: 'border-emerald-200 ring-1 ring-emerald-100',
+        shell: 'border-emerald-200 ring-1 ring-emerald-100 dark:border-emerald-800 dark:ring-emerald-900/60',
         header: 'bg-gradient-to-r from-emerald-700 via-emerald-600 to-emerald-500',
         focus: 'focus:ring-emerald-500/30 focus:border-emerald-500',
         submit: 'bg-emerald-600 hover:bg-emerald-700',
         toggleOn: 'peer-checked:bg-emerald-600',
-        panel: 'border-emerald-200 bg-emerald-50/70',
-        total: 'text-emerald-700',
+        panel: 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/60',
+        total: 'text-emerald-700 dark:text-emerald-300',
       }
     : {
-        shell: 'border-amber-200 ring-1 ring-amber-100',
+        shell: 'border-amber-200 ring-1 ring-amber-100 dark:border-amber-800 dark:ring-amber-900/60',
         header: 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-500',
         focus: 'focus:ring-amber-500/30 focus:border-amber-500',
         submit: 'bg-amber-600 hover:bg-amber-700',
         toggleOn: 'peer-checked:bg-amber-500',
-        panel: 'border-amber-200 bg-amber-50/70',
-        total: 'text-amber-700',
+        panel: 'border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/60',
+        total: 'text-amber-700 dark:text-amber-300',
       };
 
   return (
-    <div className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition-colors animate-fade-in ${theme.shell}`}>
+    <div className={`overflow-hidden rounded-2xl border bg-surface shadow-sm transition-colors animate-fade-in ${theme.shell}`}>
       <div className={`px-6 py-5 text-white ${theme.header}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -289,10 +289,10 @@ const TransactionForm = ({ members, onSubmit }) => {
       </div>
       <form onSubmit={handleSubmit} className="space-y-4 p-6">
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">{error}</div>
         )}
         {success && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
             {success}
           </div>
         )}
@@ -300,39 +300,39 @@ const TransactionForm = ({ members, onSubmit }) => {
         {isWithdrawal && (
           <div className={`rounded-xl border px-4 py-3 text-sm ${theme.panel}`}>
             {balanceLoading ? (
-              <span className="text-slate-500">Checking remaining deposit balance…</span>
+              <span className="text-ink-muted">Checking remaining deposit balance…</span>
             ) : balanceInfo ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Available pool</p>
-                  <p className="mt-0.5 font-mono font-semibold tabular-nums text-slate-800">{formatMoney(balanceInfo.available)}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Available pool</p>
+                  <p className="mt-0.5 font-mono font-semibold tabular-nums text-ink">{formatMoney(balanceInfo.available)}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Already received</p>
-                  <p className="mt-0.5 font-mono font-semibold tabular-nums text-emerald-600">{formatMoney(balanceInfo.received)}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Already received</p>
+                  <p className="mt-0.5 font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatMoney(balanceInfo.received)}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Remaining deposit balance</p>
-                  <p className="mt-0.5 font-mono font-semibold tabular-nums text-amber-700">{formatMoney(balanceInfo.remaining)}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Remaining deposit balance</p>
+                  <p className="mt-0.5 font-mono font-semibold tabular-nums text-amber-700 dark:text-amber-300">{formatMoney(balanceInfo.remaining)}</p>
                 </div>
               </div>
             ) : (
-              <span className="text-slate-500">Select a member to see the live remaining deposit balance indicator.</span>
+              <span className="text-ink-muted">Select a member to see the live remaining deposit balance indicator.</span>
             )}
           </div>
         )}
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Member</label>
+          <label className="mb-1 block text-sm font-medium text-ink-soft">Member</label>
           {selectedMember && (
-            <p className="mb-2 text-xs text-slate-500">
-              Selected: <span className="font-medium text-slate-700">{selectedMember.name}</span>
+            <p className="mb-2 text-xs text-ink-muted">
+              Selected: <span className="font-medium text-ink">{selectedMember.name}</span>
               {selectedMember.jNo ? ` · ${selectedMember.jNo}` : ''}
             </p>
           )}
 
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
             <input
               type="text"
               value={memberSearch}
@@ -345,7 +345,7 @@ const TransactionForm = ({ members, onSubmit }) => {
               <button
                 type="button"
                 onClick={() => setMemberSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink-soft"
                 aria-label="Clear member search"
               >
                 <X className="h-4 w-4" />
@@ -370,7 +370,7 @@ const TransactionForm = ({ members, onSubmit }) => {
           </div>
 
           {memberSearch && filteredMembers.length === 0 && (
-            <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">
+            <div className="mt-3 rounded-lg border border-dashed border-line-strong bg-subtle px-3 py-4 text-center text-sm text-ink-muted">
               No users found
             </div>
           )}
@@ -378,7 +378,7 @@ const TransactionForm = ({ members, onSubmit }) => {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Village Name</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Village Name</label>
             <input
               name="villageName"
               value={form.villageName}
@@ -389,9 +389,9 @@ const TransactionForm = ({ members, onSubmit }) => {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Transaction Date</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Transaction Date</label>
             <div className="relative">
-              <CalendarDays size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <CalendarDays size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <input
                 type="date"
                 name="date"
@@ -401,10 +401,10 @@ const TransactionForm = ({ members, onSubmit }) => {
                 className={`${inputClass(theme.focus)} pl-9`}
               />
             </div>
-            <p className="mt-1 text-[11px] text-slate-400">Defaults to today ({todayKey()}). Future dates are blocked.</p>
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Defaults to today ({todayKey()}). Future dates are blocked.</p>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
               {isDeposit ? 'Base Amount (₹)' : 'Payout / Received Amount (₹)'}
             </label>
             <input
@@ -418,7 +418,7 @@ const TransactionForm = ({ members, onSubmit }) => {
               placeholder="0.00"
             />
             {isDeposit && Number(form.amount) > 0 && (
-              <p className="mt-1 text-xs text-emerald-700">
+              <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">
                 50% of the entered amount ({formatMoney(Number(form.amount) * 0.5)}) will be allocated as available deposit balance
               </p>
             )}
@@ -429,8 +429,8 @@ const TransactionForm = ({ members, onSubmit }) => {
           <div className={`space-y-3 rounded-xl border px-4 py-3.5 ${theme.panel}`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-800">Extra Fee</p>
-                <p className="text-xs text-slate-500">Add an optional charge to this deposit</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Extra Fee</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Add an optional charge to this deposit</p>
               </div>
 
               <label className="relative inline-flex cursor-pointer items-center">
@@ -441,14 +441,14 @@ const TransactionForm = ({ members, onSubmit }) => {
                   onChange={handleChange}
                   className="peer sr-only"
                 />
-                <span className={`h-6 w-11 rounded-full bg-slate-200 transition-colors duration-200 peer-focus:outline-none ${theme.toggleOn}`} />
+                <span className={`h-6 w-11 rounded-full bg-slate-200 transition-colors duration-200 peer-focus:outline-none dark:bg-slate-700 ${theme.toggleOn}`} />
                 <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5" />
               </label>
             </div>
 
             {form.hasExtraFee && (
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="extraFee">
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="extraFee">
                   Extra Fee Amount (₹)
                 </label>
                 <input
@@ -465,8 +465,8 @@ const TransactionForm = ({ members, onSubmit }) => {
               </div>
             )}
 
-            <div className="flex items-center justify-between border-t border-emerald-200/80 pt-2 text-sm">
-              <span className="font-medium text-slate-700">Total transaction amount</span>
+            <div className="flex items-center justify-between border-t border-emerald-200/80 pt-2 text-sm dark:border-emerald-800/70">
+              <span className="font-medium text-slate-700 dark:text-slate-300">Total transaction amount</span>
               <span className={`font-mono font-semibold tabular-nums ${theme.total}`}>
                 {formatMoney(transactionTotal)}
               </span>
@@ -475,7 +475,7 @@ const TransactionForm = ({ members, onSubmit }) => {
         )}
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Note (optional)</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Note (optional)</label>
           <input
             name="note"
             value={form.note}

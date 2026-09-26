@@ -14,7 +14,14 @@ const AdminSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
-      minlength: 6,
+      minlength: 8,
+      // select:false: hashes can never leak through a forgotten .select() /
+      // .lean() query - login must opt in with .select('+password').
+      select: false,
+      validate: {
+        validator: (value) => /\d/.test(value),
+        message: 'Password must contain at least one digit',
+      },
     },
     name: {
       type: String,
@@ -27,7 +34,8 @@ const AdminSchema = new mongoose.Schema(
 
 AdminSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt(10);
+  // cost 12: measurably slower to brute-force offline than the old 10.
+  const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
   next();
 });

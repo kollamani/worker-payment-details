@@ -5,6 +5,9 @@ import { formatINR, safeAmount } from '../../utils/financialMetrics';
 /**
  * Status segment pills rendered directly above the summary card grid. They are
  * real filters (All / Pending / Completed) applied to the task board below.
+ * The selected pill inverts (dark fill / light text in light mode, light fill /
+ * dark text in dark mode) so its state is obvious without relying on colour
+ * alone — aria-selected carries the same information for assistive tech.
  */
 export const SegmentPills = ({ segments = [], active, onChange }) => (
   <div className="mb-3 flex flex-wrap items-center gap-2" role="tablist" aria-label="Filter tasks by status">
@@ -19,14 +22,14 @@ export const SegmentPills = ({ segments = [], active, onChange }) => (
           onClick={() => onChange(segment.key)}
           className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
             isActive
-              ? 'border-slate-900 bg-white text-slate-900 shadow-sm ring-2 ring-slate-900/10'
-              : 'border-slate-200 bg-white/70 text-slate-500 hover:bg-white hover:text-slate-900'
+              ? 'border-ink bg-surface text-ink shadow-sm ring-2 ring-ink/10 dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100/10'
+              : 'border-line bg-surface/70 text-ink-muted hover:bg-surface hover:text-ink'
           }`}
         >
           {segment.label}
           <span
             className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${
-              isActive ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'
+              isActive ? 'bg-ink text-surface' : 'bg-subtle text-ink-soft'
             }`}
           >
             {segment.count}
@@ -41,6 +44,8 @@ export const SegmentPills = ({ segments = [], active, onChange }) => (
  * Top summary card — always visible, one per category bucket. Pastel gradient,
  * icon tile, live task-count chip, the bucket formula as the subtitle and a
  * miniature sparkline of the bucket's cumulative running total.
+ * The gradient `tint` and `iconTint` come from the page and each include a
+ * `dark:` pair, so the card keeps its identity in both themes.
  */
 export const SummaryCard = ({
   label,
@@ -56,22 +61,22 @@ export const SummaryCard = ({
 }) => {
   const amount = safeAmount(value);
   const taskCount = safeAmount(count);
-  const tone = toneWhenNegative && amount < 0 ? 'text-rose-600' : 'text-slate-900';
+  const tone = toneWhenNegative && amount < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-ink';
   return (
     <article
-      className={`rounded-2xl border border-slate-200 bg-gradient-to-br p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${tint}`}
+      className={`rounded-2xl border border-line bg-gradient-to-br p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${tint}`}
     >
       <div className="flex items-start justify-between gap-2">
         <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconTint}`}>
           <Icon size={17} strokeWidth={2.2} />
         </span>
-        <span className="rounded-full bg-white/80 px-2 py-1 font-mono text-[10px] font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200/70">
+        <span className="rounded-full bg-surface/80 px-2 py-1 font-mono text-[10px] font-semibold tabular-nums text-ink-muted ring-1 ring-line/70">
           {taskCount} {taskCount === 1 ? 'task' : 'tasks'}
         </span>
       </div>
-      <p className="mt-3 truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className="mt-3 truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{label}</p>
       <p className={`mt-1 whitespace-nowrap font-mono text-2xl font-bold tabular-nums ${tone}`}>{formatINR(amount)}</p>
-      <p className="mt-1 truncate text-[11px] font-medium text-slate-500" title={formula}>
+      <p className="mt-1 truncate text-[11px] font-medium text-ink-muted" title={formula}>
         {formula}
       </p>
       <div className="mt-3 h-8 w-full" title={`${label} — cumulative running total`}>
@@ -83,13 +88,15 @@ export const SummaryCard = ({
 
 /**
  * Futures card — deliberately darker (slate/indigo gradient on light text) so
- * the projected section reads as a clearly distinct view of the ledger.
+ * the projected section reads as a clearly distinct view of the ledger. The
+ * same dark panel works as a high-contrast accent on light canvases and blends
+ * naturally with dark-mode surfaces.
  */
 export const FuturesCard = ({ label, formula, value, icon: Icon, accentText = 'text-emerald-300', toneWhenNegative = false }) => {
   const amount = safeAmount(value);
   const tone = toneWhenNegative && amount < 0 ? 'text-rose-300' : accentText;
   return (
-    <article className="rounded-2xl border border-indigo-400/20 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-4 shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+    <article className="rounded-2xl border border-indigo-400/20 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-4 shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:border-indigo-400/30">
       <div className="flex items-center justify-between gap-2">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-indigo-200">
           <Icon size={17} strokeWidth={2.2} />
@@ -123,7 +130,7 @@ export const FuturesGrid = ({ open, panelId, children }) => (
     }`}
   >
     <div className="min-h-0 overflow-hidden">
-      <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 sm:p-4">{children}</div>
+      <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 dark:border-indigo-900 dark:bg-indigo-950/40 sm:p-4">{children}</div>
     </div>
   </div>
 );
