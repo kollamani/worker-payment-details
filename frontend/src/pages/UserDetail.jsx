@@ -10,13 +10,26 @@ import {
   X,
   Save,
   Wallet,
+  PlusCircle,
+  Loader2,
+  Inbox,
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import MetricCard from '../components/MetricCard';
 import ConfirmModal from '../components/ConfirmModal';
+import SelectionCheckbox from '../components/SelectionCheckbox';
+import AddWorkerTransactionModal from '../components/AddWorkerTransactionModal';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import { formatUtcDateDisplay, toUtcDateKey } from '../utils/dates';
+import {
+  TRANSACTION_STATUS_CLASSES,
+  PAYMENT_METHOD_OPTIONS,
+  formatPaymentMethod,
+  formatTransactionType,
+  getTransactionStatus,
+  shortTransactionId,
+} from '../utils/transactions';
 
 const HistoryActions = ({ transaction, actionLoading, onEdit, onDelete }) => (
   <div className="flex items-center justify-center gap-2">
@@ -39,6 +52,21 @@ const HistoryActions = ({ transaction, actionLoading, onEdit, onDelete }) => (
   </div>
 );
 
+const transactionKey = (transaction) => String(transaction?.id ?? transaction?._id ?? '');
+
+const StatusPill = ({ transaction }) => {
+  const status = getTransactionStatus(transaction);
+  return (
+    <span
+      className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+        TRANSACTION_STATUS_CLASSES[status.key] || TRANSACTION_STATUS_CLASSES.active
+      }`}
+    >
+      {status.label}
+    </span>
+  );
+};
+
 const TransactionHistoryTables = ({
   deposits,
   withdrawals,
@@ -48,6 +76,9 @@ const TransactionHistoryTables = ({
   actionLoading,
   onEdit,
   onDelete,
+  selectedIds = [],
+  onToggleRow,
+  onToggleMany,
 }) => {
   const depositTotals = deposits.reduce(
     (totals, transaction) => {
@@ -64,6 +95,14 @@ const TransactionHistoryTables = ({
   );
   const withdrawalTotal = totalWithdrawn ?? withdrawals.reduce((total, transaction) => total + Number(transaction.amount || 0), 0);
   const remainingNetBalance = availablePool - withdrawalTotal;
+
+  const selectedSet = new Set((selectedIds || []).map(String));
+  const depositIds = deposits.map(transactionKey);
+  const withdrawalIds = withdrawals.map(transactionKey);
+  const allDepositsSelected = depositIds.length > 0 && depositIds.every((id) => selectedSet.has(id));
+  const someDepositsSelected = depositIds.some((id) => selectedSet.has(id));
+  const allWithdrawalsSelected = withdrawalIds.length > 0 && withdrawalIds.every((id) => selectedSet.has(id));
+  const someWithdrawalsSelected = withdrawalIds.some((id) => selectedSet.has(id));
 
   const emptyMessage = (label, tint) => (
     <p className={`p-5 text-sm ${tint}`}>No {label} transactions found.</p>
@@ -83,11 +122,22 @@ const TransactionHistoryTables = ({
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-emerald-700 text-xs uppercase tracking-wide text-white dark:bg-emerald-800">
                 <tr>
+                  <th className="w-10 px-3 py-3 text-center">
+                    <SelectionCheckbox
+                      checked={allDepositsSelected}
+                      indeterminate={someDepositsSelected && !allDepositsSelected}
+                      onChange={(event) => onToggleMany(depositIds, event.target.checked)}
+                      label="Select all deposit transactions"
+                    />
+                  </th>
                   <th className="px-3 py-3 text-left">Date</th>
+                  <th className="px-3 py-3 text-left">Transaction ID / Type</th>
                   <th className="px-3 py-3 text-right">Raw Deposit Amount</th>
                   <th className="px-3 py-3 text-right">50% Effective Balance</th>
                   <th className="px-3 py-3 text-right">Extra Fee</th>
                   <th className="px-3 py-3 text-right">Total for Date</th>
+                  <th className="px-3 py-3 text-left">Payment</th>
+                  <th className="px-3 py-3 text-left">Note / Description</th>
                   <th className="px-3 py-3 text-center">Status</th>
                   <th className="px-3 py-3 text-center">Actions</th>
                 </tr>
@@ -97,17 +147,33 @@ const TransactionHistoryTables = ({
                   const raw = Number(transaction.originalEnteredAmount ?? transaction.amount ?? 0);
                   const effective = Number(transaction.calculatedAmount ?? transaction.effectiveDepositBalance ?? raw * 0.5);
                   const fee = Number(transaction.extraFee || 0);
+                  const key = transactionKey(transaction);
                   return (
-                    <tr key={String(transaction.id || transaction._id)} className="table-row-hover hover:bg-emerald-50/60 dark:hover:bg-emerald-950/40">
+                    <tr key={key} className="table-row-hover hover:bg-emerald-50/60 dark:hover:bg-emerald-950/40">
+                      <td className="px-3 py-3 text-center">
+                        <SelectionCheckbox
+                          checked={selectedSet.has(key)}
+                          onChange={() => onToggleRow(key)}
+                          label={`Select deposit transaction ${shortTransactionId(transaction)}`}
+                        />
+                      </td>
                       <td className="whitespace-nowrap px-3 py-3 text-slate-700 dark:text-slate-300">{formatUtcDateDisplay(transaction.date)}</td>
+                      <td className="whitespace-nowrap px-3 py-3">
+                        <p className="font-mono text-xs text-slate-700 dark:text-slate-300" title={key}>
+                          {shortTransactionId(transaction)}
+                        </p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                          {formatTransactionType(transaction.type)}
+                        </p>
+                      </td>
                       <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(raw)}</td>
                       <td className="px-3 py-3 text-right font-mono tabular-nums text-indigo-700 dark:text-indigo-300">{formatMoney(effective)}</td>
                       <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(fee)}</td>
                       <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatMoney(effective + fee)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-600 dark:text-slate-400">{formatPaymentMethod(transaction.paymentMethod)}</td>
+                      <td className="max-w-[14rem] px-3 py-3 text-slate-600 dark:text-slate-400">{transaction.note || '—'}</td>
                       <td className="px-3 py-3 text-center">
-                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/70 dark:text-emerald-300 dark:ring-emerald-400/30">
-                          Deposit
-                        </span>
+                        <StatusPill transaction={transaction} />
                       </td>
                       <td className="px-3 py-3">
                         <HistoryActions transaction={transaction} actionLoading={actionLoading} onEdit={onEdit} onDelete={onDelete} />
@@ -118,12 +184,12 @@ const TransactionHistoryTables = ({
               </tbody>
               <tfoot className="border-t-2 border-emerald-100 bg-emerald-50/70 font-semibold dark:border-emerald-900 dark:bg-emerald-950/50">
                 <tr>
-                  <td className="px-3 py-3">Deposit Sub-Total</td>
+                  <td className="px-3 py-3" colSpan={3}>Deposit Sub-Total</td>
                   <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(depositTotals.raw)}</td>
                   <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(depositTotals.effective)}</td>
                   <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(depositTotals.fee)}</td>
                   <td className="px-3 py-3 text-right font-mono tabular-nums text-emerald-600 dark:text-emerald-400">{formatMoney(depositTotals.total)}</td>
-                  <td colSpan={2} />
+                  <td colSpan={4} />
                 </tr>
               </tfoot>
             </table>
@@ -153,45 +219,72 @@ const TransactionHistoryTables = ({
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-amber-600 text-xs uppercase tracking-wide text-white dark:bg-amber-700">
                 <tr>
+                  <th className="w-10 px-3 py-3 text-center">
+                    <SelectionCheckbox
+                      checked={allWithdrawalsSelected}
+                      indeterminate={someWithdrawalsSelected && !allWithdrawalsSelected}
+                      onChange={(event) => onToggleMany(withdrawalIds, event.target.checked)}
+                      label="Select all withdrawal transactions"
+                    />
+                  </th>
                   <th className="px-3 py-3 text-left">Withdrawal Date</th>
+                  <th className="px-3 py-3 text-left">Transaction ID / Type</th>
                   <th className="px-3 py-3 text-left">Deducted From Deposit Date</th>
                   <th className="px-3 py-3 text-right">Withdrawn / Received Amount</th>
                   <th className="px-3 py-3 text-right">Remaining Deposit Pool</th>
+                  <th className="px-3 py-3 text-left">Payment</th>
                   <th className="px-3 py-3 text-left">Note / Description</th>
                   <th className="px-3 py-3 text-center">Status</th>
                   <th className="px-3 py-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-amber-50 dark:divide-amber-900/60">
-                {withdrawals.map((transaction) => (
-                  <tr key={String(transaction.id || transaction._id)} className="table-row-hover hover:bg-amber-50/60 dark:hover:bg-amber-950/40">
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-700 dark:text-slate-300">{formatUtcDateDisplay(transaction.date)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-600 dark:text-slate-400">
-                      {transaction.deductFromDepositDate || transaction.sourceDepositDate
-                        ? formatUtcDateDisplay(transaction.deductFromDepositDate || transaction.sourceDepositDate)
-                        : '—'}
-                    </td>
-                    <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums text-amber-600 dark:text-amber-400">{formatMoney(transaction.amount)}</td>
-                    <td className="px-3 py-3 text-right font-mono tabular-nums">
-                      {transaction.remainingBalanceAfterDeduction == null ? '—' : formatMoney(transaction.remainingBalanceAfterDeduction)}
-                    </td>
-                    <td className="px-3 py-3 text-slate-600 dark:text-slate-400">{transaction.note || '—'}</td>
-                    <td className="px-3 py-3 text-center">
-                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950/70 dark:text-amber-300 dark:ring-amber-400/30">
-                        Received
-                      </span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <HistoryActions transaction={transaction} actionLoading={actionLoading} onEdit={onEdit} onDelete={onDelete} />
-                    </td>
-                  </tr>
-                ))}
+                {withdrawals.map((transaction) => {
+                  const key = transactionKey(transaction);
+                  return (
+                    <tr key={key} className="table-row-hover hover:bg-amber-50/60 dark:hover:bg-amber-950/40">
+                      <td className="px-3 py-3 text-center">
+                        <SelectionCheckbox
+                          checked={selectedSet.has(key)}
+                          onChange={() => onToggleRow(key)}
+                          label={`Select withdrawal transaction ${shortTransactionId(transaction)}`}
+                        />
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-700 dark:text-slate-300">{formatUtcDateDisplay(transaction.date)}</td>
+                      <td className="whitespace-nowrap px-3 py-3">
+                        <p className="font-mono text-xs text-slate-700 dark:text-slate-300" title={key}>
+                          {shortTransactionId(transaction)}
+                        </p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                          {formatTransactionType(transaction.type)}
+                        </p>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-600 dark:text-slate-400">
+                        {transaction.deductFromDepositDate || transaction.sourceDepositDate
+                          ? formatUtcDateDisplay(transaction.deductFromDepositDate || transaction.sourceDepositDate)
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums text-amber-600 dark:text-amber-400">{formatMoney(transaction.amount)}</td>
+                      <td className="px-3 py-3 text-right font-mono tabular-nums">
+                        {transaction.remainingBalanceAfterDeduction == null ? '—' : formatMoney(transaction.remainingBalanceAfterDeduction)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-600 dark:text-slate-400">{formatPaymentMethod(transaction.paymentMethod)}</td>
+                      <td className="px-3 py-3 text-slate-600 dark:text-slate-400">{transaction.note || '—'}</td>
+                      <td className="px-3 py-3 text-center">
+                        <StatusPill transaction={transaction} />
+                      </td>
+                      <td className="px-3 py-3">
+                        <HistoryActions transaction={transaction} actionLoading={actionLoading} onEdit={onEdit} onDelete={onDelete} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot className="border-t-2 border-amber-100 bg-amber-50/70 font-semibold dark:border-amber-900 dark:bg-amber-950/50">
                 <tr>
-                  <td className="px-3 py-3" colSpan={2}>Withdrawal / Received Sub-Total</td>
+                  <td className="px-3 py-3" colSpan={4}>Withdrawal / Received Sub-Total</td>
                   <td className="px-3 py-3 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400">{formatMoney(withdrawalTotal)}</td>
-                  <td colSpan={4} />
+                  <td colSpan={5} />
                 </tr>
               </tfoot>
             </table>
@@ -218,6 +311,7 @@ const UserDetail = () => {
     amount: '',
     note: '',
     villageName: '',
+    paymentMethod: 'cash',
     hasExtraFee: false,
     extraFee: 0,
   });
@@ -227,9 +321,13 @@ const UserDetail = () => {
   const [appliedDateTo, setAppliedDateTo] = useState('');
   const [editingError, setEditingError] = useState('');
   const [actionLoading, setActionLoading] = useState({});
+  const [selectedTransactionIds, setSelectedTransactionIds] = useState([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
-  const fetchSummary = async () => {
-    setLoading(true);
+  const fetchSummary = async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true);
     setError('');
     try {
       const res = await api.get(`/members/${id}/summary`);
@@ -237,12 +335,13 @@ const UserDetail = () => {
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load member summary');
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const submitDelete = async () => {
@@ -319,9 +418,112 @@ const UserDetail = () => {
       amount: transaction.amount ?? '',
       note: transaction.note || '',
       villageName: transaction.villageName || data?.member?.villageName || '',
+      paymentMethod: transaction.paymentMethod || 'cash',
       hasExtraFee: Number(transaction.extraFee || 0) > 0,
       extraFee: Number(transaction.extraFee || 0),
     });
+  };
+
+  /* ── Add transaction (always scoped to this worker) ── */
+
+  const handleAddTransaction = async (payload) => {
+    const res = await api.post('/transactions', payload);
+    const created = res.data?.transaction;
+
+    // Optimistic insert so the new row appears immediately; fetchSummary below
+    // reconciles every derived balance from the server.
+    if (created) {
+      const optimisticRow = {
+        ...created,
+        id: created._id || created.id,
+        originalEnteredAmount: created.originalEnteredAmount ?? created.amount,
+        effectiveDepositBalance: created.effectiveDepositBalance ?? Number(created.amount || 0) * 0.5,
+        remainingBalance: created.remainingBalance ?? Number(created.amount || 0) * 0.5,
+        calculatedAmount:
+          created.type === 'deposit'
+            ? created.effectiveDepositBalance ?? Number(created.amount || 0) * 0.5
+            : Number(created.amount || 0),
+      };
+      setData((prev) =>
+        prev ? { ...prev, timeline: [...(prev.timeline || []), optimisticRow] } : prev
+      );
+    }
+
+    setSuccess('Transaction added successfully.');
+    showToast(
+      `${formatMoney(payload.amount)} transaction added successfully.`,
+      'success',
+      'Transaction Added'
+    );
+    await fetchSummary({ quiet: true });
+  };
+
+  /* ── Selection ── */
+
+  const handleToggleTransaction = (transactionId) => {
+    const key = String(transactionId);
+    setSelectedTransactionIds((previous) =>
+      previous.includes(key) ? previous.filter((id) => id !== key) : [...previous, key]
+    );
+  };
+
+  const handleToggleManyTransactions = (transactionIds, checked) => {
+    const keys = transactionIds.map(String);
+    setSelectedTransactionIds((previous) => {
+      const next = new Set(previous);
+      if (checked) keys.forEach((key) => next.add(key));
+      else keys.forEach((key) => next.delete(key));
+      return Array.from(next);
+    });
+  };
+
+  const clearSelection = () => setSelectedTransactionIds([]);
+
+  /* ── Bulk delete ── */
+
+  const submitBulkDelete = async () => {
+    const idsToDelete = [...selectedTransactionIds];
+    if (idsToDelete.length === 0) return;
+
+    setBulkDeleting(true);
+    try {
+      const res = await api.delete('/transactions/bulk', {
+        data: { ids: idsToDelete, memberId: id },
+      });
+      const deletedCount = Number(res.data?.deletedCount ?? res.data?.count ?? 0);
+      const skippedCount = Number(res.data?.skippedCount ?? 0);
+      const deletedSet = new Set(idsToDelete);
+
+      // Drop the rows immediately, then reconcile balances with the server.
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              timeline: (prev.timeline || []).filter(
+                (transaction) => !deletedSet.has(String(transaction.id || transaction._id))
+              ),
+            }
+          : prev
+      );
+
+      setBulkDeleteOpen(false);
+      clearSelection();
+      const summary = `Deleted ${deletedCount} transaction${deletedCount === 1 ? '' : 's'} successfully.`;
+      setSuccess(skippedCount > 0 ? `${summary} ${skippedCount} record(s) were already gone.` : summary);
+      showToast(
+        skippedCount > 0 ? `${summary} ${skippedCount} record(s) were already gone.` : summary,
+        'success',
+        'Transactions Deleted'
+      );
+      await fetchSummary({ quiet: true });
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to delete the selected transactions';
+      setError(message);
+      showToast(`Failed to delete selected transactions: ${message}`, 'error', 'Action Failed');
+      setBulkDeleteOpen(false);
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const handleEditChange = (e) => {
@@ -356,6 +558,7 @@ const UserDetail = () => {
         extraFee: editingForm.hasExtraFee ? Number(editingForm.extraFee || 0) : 0,
         note: editingForm.note || '',
         villageName: editingForm.villageName || data?.member?.villageName || '',
+        paymentMethod: editingForm.paymentMethod || 'cash',
       });
       setSuccess('Transaction updated successfully.');
       if (editingForm.hasExtraFee && Number(editingForm.extraFee) > 0) {
@@ -374,6 +577,7 @@ const UserDetail = () => {
         amount: '',
         note: '',
         villageName: '',
+        paymentMethod: 'cash',
         hasExtraFee: false,
         extraFee: 0,
       });
@@ -454,6 +658,33 @@ const UserDetail = () => {
   overallTotals.availablePool = overallTotals.halfTotal + overallTotals.extraTotal;
   overallTotals.remainingNetBalance = overallTotals.availablePool - overallTotals.receivedTotal;
 
+  /* ── selection derived from the currently visible rows ── */
+  const visibleTransactionIds = filteredTimeline.map((transaction) =>
+    String(transaction.id || transaction._id)
+  );
+  const visibleTransactionKey = visibleTransactionIds.join(',');
+  const selectedTransactionSet = new Set(selectedTransactionIds);
+  const selectedCount = selectedTransactionIds.length;
+  const allVisibleSelected =
+    visibleTransactionIds.length > 0 &&
+    visibleTransactionIds.every((transactionId) => selectedTransactionSet.has(transactionId));
+  const someVisibleSelected = visibleTransactionIds.some((transactionId) =>
+    selectedTransactionSet.has(transactionId)
+  );
+
+  // Changing the date filter or refreshing after a delete can hide/prune rows.
+  // Keep the selection limited to rows that still exist so the action bar never
+  // counts (or deletes) a stale id.
+  useEffect(() => {
+    const validIds = new Set(
+      visibleTransactionKey ? visibleTransactionKey.split(',') : []
+    );
+    setSelectedTransactionIds((previous) => {
+      const next = previous.filter((transactionId) => validIds.has(transactionId));
+      return next.length === previous.length ? previous : next;
+    });
+  }, [visibleTransactionKey]);
+
   return (
     <div className="min-h-screen bg-canvas">
       <Navbar />
@@ -475,7 +706,17 @@ const UserDetail = () => {
         )}
 
         {loading ? (
-          <p className="text-slate-500 dark:text-slate-400">Loading...</p>
+          <div className="space-y-5" aria-busy="true" aria-live="polite">
+            <div className="h-28 animate-pulse rounded-2xl border border-line bg-surface/70" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((index) => (
+                <div key={index} className="h-24 animate-pulse rounded-2xl border border-line bg-surface/70" />
+              ))}
+            </div>
+            <div className="h-16 animate-pulse rounded-2xl border border-line bg-surface/70" />
+            <div className="h-72 animate-pulse rounded-2xl border border-line bg-surface/70" />
+            <span className="sr-only">Loading worker details…</span>
+          </div>
         ) : data ? (
           <div className="animate-fade-in">
             <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between dark:border-slate-800 dark:bg-slate-900">
@@ -494,14 +735,23 @@ const UserDetail = () => {
                   )}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setDeleteAllOpen(true)}
-                disabled={sortedTimeline.length === 0 || actionLoading.allTransactions === 'delete'}
-                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/50"
-              >
-                <Trash2 size={14} /> Delete All Transactions
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-3.5 py-2 text-xs font-semibold text-white shadow-lg shadow-brand-600/25 transition-all hover:from-brand-500 hover:to-brand-400 sm:text-sm"
+                >
+                  <PlusCircle size={16} /> Add Transaction
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteAllOpen(true)}
+                  disabled={sortedTimeline.length === 0 || actionLoading.allTransactions === 'delete'}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/50"
+                >
+                  <Trash2 size={14} /> Delete All Transactions
+                </button>
+              </div>
             </div>
 
             <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -551,16 +801,103 @@ const UserDetail = () => {
               <MetricCard label="Net Available Balance" value={overallTotals.remainingNetBalance} icon={Wallet} color="amber" />
             </div>
 
-            <TransactionHistoryTables
-              deposits={depositTransactions}
-              withdrawals={withdrawalTransactions}
-              availablePool={overallTotals.availablePool}
-              totalWithdrawn={overallTotals.receivedTotal}
-              formatMoney={formatMoney}
-              actionLoading={actionLoading}
-              onEdit={openEditModal}
-              onDelete={setTransactionToDelete}
-            />
+            {filteredTimeline.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-line-strong bg-surface p-8 text-center shadow-sm sm:p-12">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-subtle text-ink-muted">
+                  <Inbox size={26} aria-hidden="true" />
+                </span>
+                <h2 className="mt-4 text-base font-semibold text-ink">
+                  {uniqueTimeline.length === 0 ? 'No transactions yet' : 'No transactions in this date range'}
+                </h2>
+                <p className="mx-auto mt-1 max-w-md text-sm text-ink-muted">
+                  {uniqueTimeline.length === 0
+                    ? 'Record the first deposit or withdrawal for this worker to start the ledger.'
+                    : 'Clear or adjust the date filter to see this worker’s other transactions.'}
+                </p>
+                {uniqueTimeline.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setAddOpen(true)}
+                    className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-600/25 transition-all hover:from-brand-500 hover:to-brand-400"
+                  >
+                    <PlusCircle size={17} /> Add Transaction
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={clearDateFilter}
+                    className="mt-5 rounded-xl border border-line-strong px-4 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-subtle hover:text-ink"
+                  >
+                    Clear date filter
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <section
+                  aria-label="Bulk transaction actions"
+                  className="mb-4 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <SelectionCheckbox
+                      checked={allVisibleSelected}
+                      indeterminate={someVisibleSelected && !allVisibleSelected}
+                      onChange={(event) =>
+                        handleToggleManyTransactions(visibleTransactionIds, event.target.checked)
+                      }
+                      label="Select all visible transactions"
+                    />
+                    <div>
+                      <h2 className="text-sm font-semibold text-ink">Transactions</h2>
+                      <p className="mt-0.5 text-xs text-ink-muted">
+                        {filteredTimeline.length} record{filteredTimeline.length === 1 ? '' : 's'}
+                        {selectedCount > 0 ? ` · ${selectedCount} selected` : ' · select rows to delete in bulk'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={clearSelection}
+                        disabled={bulkDeleting}
+                        className="rounded-xl border border-line-strong px-3 py-2 text-xs font-medium text-ink-soft transition-colors hover:bg-subtle hover:text-ink disabled:opacity-50"
+                      >
+                        Clear selection
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setBulkDeleteOpen(true)}
+                      disabled={selectedCount === 0 || bulkDeleting}
+                      className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-600/40 disabled:shadow-none"
+                    >
+                      {bulkDeleting ? (
+                        <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Trash2 size={15} aria-hidden="true" />
+                      )}
+                      {bulkDeleting ? 'Deleting…' : `Delete Selected (${selectedCount})`}
+                    </button>
+                  </div>
+                </section>
+
+                <TransactionHistoryTables
+                  deposits={depositTransactions}
+                  withdrawals={withdrawalTransactions}
+                  availablePool={overallTotals.availablePool}
+                  totalWithdrawn={overallTotals.receivedTotal}
+                  formatMoney={formatMoney}
+                  actionLoading={actionLoading}
+                  onEdit={openEditModal}
+                  onDelete={setTransactionToDelete}
+                  selectedIds={selectedTransactionIds}
+                  onToggleRow={handleToggleTransaction}
+                  onToggleMany={handleToggleManyTransactions}
+                />
+              </>
+            )}
           </div>
         ) : null}
 
@@ -569,6 +906,7 @@ const UserDetail = () => {
           title="Delete transaction"
           message={`Are you sure you want to delete this transaction for ${data?.member?.name || 'this member'}? This will also update the member balance.`}
           confirmLabel={actionLoading[transactionToDelete?.id] === 'delete' ? 'Deleting...' : 'Delete'}
+          loading={actionLoading[transactionToDelete?.id] === 'delete'}
           onConfirm={submitDelete}
           onCancel={() => setTransactionToDelete(null)}
         />
@@ -578,8 +916,29 @@ const UserDetail = () => {
           title="Delete all transactions"
           message="Are you sure you want to delete all transactions for this user? This action cannot be undone."
           confirmLabel={actionLoading.allTransactions === 'delete' ? 'Deleting...' : 'Delete All'}
+          loading={actionLoading.allTransactions === 'delete'}
           onConfirm={submitDeleteAll}
           onCancel={() => setDeleteAllOpen(false)}
+        />
+
+        <ConfirmModal
+          open={bulkDeleteOpen}
+          title={`Delete ${selectedCount} selected transaction${selectedCount === 1 ? '' : 's'}?`}
+          message={`Are you sure you want to delete ${selectedCount} selected transaction${
+            selectedCount === 1 ? '' : 's'
+          } for ${data?.member?.name || 'this worker'}? This action cannot be undone.`}
+          confirmLabel={bulkDeleting ? 'Deleting…' : `Delete Selected (${selectedCount})`}
+          loading={bulkDeleting}
+          onConfirm={submitBulkDelete}
+          onCancel={() => setBulkDeleteOpen(false)}
+        />
+
+        <AddWorkerTransactionModal
+          open={addOpen}
+          member={data?.member}
+          availableBalance={overallTotals.remainingNetBalance}
+          onSubmit={handleAddTransaction}
+          onClose={() => setAddOpen(false)}
         />
 
         {editingTransaction && (
@@ -639,6 +998,22 @@ const UserDetail = () => {
                   >
                     <option value="deposit">Deposit</option>
                     <option value="withdrawal">Withdrawal / Received</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Payment Method</label>
+                  <select
+                    name="paymentMethod"
+                    value={editingForm.paymentMethod}
+                    onChange={handleEditChange}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    {PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

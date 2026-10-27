@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Search, X, Wallet, HandCoins, CalendarDays, ArrowLeft } from 'lucide-react';
 import { isFutureDateKey, isValidDateKey, todayKey } from '../utils/dates';
+import { PAYMENT_METHOD_OPTIONS } from '../utils/transactions';
+import {
+  DEFAULT_EXTRA_FEE,
+  MAIN_FORM_SCOPE,
+  loadLastTransaction,
+  saveLastTransaction,
+} from '../utils/lastTransaction';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 
@@ -18,9 +25,10 @@ const TransactionForm = ({ members, onSubmit }) => {
     date: todayKey(),
     type: '',
     amount: '',
+    paymentMethod: 'cash',
     note: '',
     hasExtraFee: false,
-    extraFee: 0,
+    extraFee: String(DEFAULT_EXTRA_FEE),
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -71,12 +79,20 @@ const TransactionForm = ({ members, onSubmit }) => {
   const selectType = (type) => {
     setError('');
     setSuccess('');
+    // Sticky defaults: pre-fill this workflow with the details of the most
+    // recently submitted transaction (last used date, payment method, amount,
+    // note and fee). Clean standard defaults apply on first use, whenever the
+    // cache is missing/corrupt, and every prefilled field stays editable.
+    const previous = loadLastTransaction(MAIN_FORM_SCOPE);
     setForm((prev) => ({
       ...prev,
       type,
-      hasExtraFee: false,
-      extraFee: 0,
-      date: isValidDateKey(prev.date) ? prev.date : todayKey(),
+      amount: previous?.amount || '',
+      date: previous?.date || todayKey(),
+      paymentMethod: previous?.paymentMethod || 'cash',
+      note: previous?.note || '',
+      hasExtraFee: Boolean(previous?.hasExtraFee) && type === 'deposit',
+      extraFee: String(previous?.extraFee ?? '') || String(DEFAULT_EXTRA_FEE),
     }));
   };
 
@@ -158,7 +174,25 @@ const TransactionForm = ({ members, onSubmit }) => {
     }
 
     if (type === 'checkbox') {
-      setForm({ ...form, [name]: checked, ...(name === 'hasExtraFee' && !checked ? { extraFee: 0 } : {}) });
+      if (name === 'hasExtraFee') {
+        setForm((prev) => ({
+          ...prev,
+          hasExtraFee: checked,
+          // Enable → seed with the existing fee the user already typed, or
+          // fall back to the default (₹100) the first time it is turned on
+          // and whenever the field was cleared. Disable → keep the value in
+          // memory but exclude it from the total and payload.
+          extraFee: String(prev.extraFee) || String(DEFAULT_EXTRA_FEE),
+        }));
+        return;
+      }
+      setForm({ ...form, [name]: checked });
+      return;
+    }
+
+    // Block negative fee amounts as they are typed (min="0" alone is not
+    // enough in every browser); submit-time validation stays as a backstop.
+    if (name === 'extraFee' && value !== '' && Number(value) < 0) {
       return;
     }
 
@@ -198,6 +232,7 @@ const TransactionForm = ({ members, onSubmit }) => {
         villageName: form.villageName || (members || []).find((m) => m._id === form.member)?.villageName || '',
         type: form.type,
         amount: Number.parseFloat(form.amount) || 0,
+        paymentMethod: form.paymentMethod || 'cash',
         note: form.note,
         date: form.date,
       };
@@ -207,6 +242,20 @@ const TransactionForm = ({ members, onSubmit }) => {
       }
 
       await onSubmit(payload);
+
+      // Success → overwrite the sticky defaults with exactly what was just
+      // submitted, so the next form opens pre-filled with these latest values.
+      // Storage failures are silently ignored (sticky defaults are best-effort).
+      saveLastTransaction(MAIN_FORM_SCOPE, {
+        type: form.type,
+        amount: form.amount,
+        date: form.date,
+        paymentMethod: form.paymentMethod,
+        note: form.note,
+        hasExtraFee: form.hasExtraFee,
+        extraFee: form.extraFee,
+      });
+
       setSuccess('Transaction recorded successfully!');
       const amountDisplay = `₹${(Number.parseFloat(form.amount) || 0).toLocaleString('en-IN')}`;
       if (isDeposit) {
@@ -228,9 +277,10 @@ const TransactionForm = ({ members, onSubmit }) => {
         date: todayKey(),
         type: '',
         amount: '',
+        paymentMethod: 'cash',
         note: '',
         hasExtraFee: false,
-        extraFee: 0,
+        extraFee: String(DEFAULT_EXTRA_FEE),
       });
     } catch (err) {
       const message = err.response?.data?.message || 'Failed to record transaction';
@@ -376,7 +426,7 @@ const TransactionForm = ({ members, onSubmit }) => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Village Name</label>
             <input
@@ -404,6 +454,21 @@ const TransactionForm = ({ members, onSubmit }) => {
             <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Defaults to today ({todayKey()}). Future dates are blocked.</p>
           </div>
           <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Payment Method</label>
+            <select
+              name="paymentMethod"
+              value={form.paymentMethod}
+              onChange={handleChange}
+              className={inputClass(theme.focus)}
+            >
+              {PAYMENT_METHOD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
               {isDeposit ? 'Base Amount (₹)' : 'Payout / Received Amount (₹)'}
             </label>
@@ -429,8 +494,12 @@ const TransactionForm = ({ members, onSubmit }) => {
           <div className={`space-y-3 rounded-xl border px-4 py-3.5 ${theme.panel}`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Extra Fee</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Add an optional charge to this deposit</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                  Apply Extra Fee
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Add an optional charge to this deposit — defaults to ₹{DEFAULT_EXTRA_FEE}, fully editable
+                </p>
               </div>
 
               <label className="relative inline-flex cursor-pointer items-center">
@@ -440,6 +509,7 @@ const TransactionForm = ({ members, onSubmit }) => {
                   checked={form.hasExtraFee}
                   onChange={handleChange}
                   className="peer sr-only"
+                  aria-label="Apply Extra Fee"
                 />
                 <span className={`h-6 w-11 rounded-full bg-slate-200 transition-colors duration-200 peer-focus:outline-none dark:bg-slate-700 ${theme.toggleOn}`} />
                 <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5" />
@@ -447,7 +517,7 @@ const TransactionForm = ({ members, onSubmit }) => {
             </div>
 
             {form.hasExtraFee && (
-              <div>
+              <div className="animate-fade-slide-down">
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="extraFee">
                   Extra Fee Amount (₹)
                 </label>
@@ -457,11 +527,15 @@ const TransactionForm = ({ members, onSubmit }) => {
                   name="extraFee"
                   min="0"
                   step="0.01"
+                  inputMode="decimal"
                   value={form.extraFee}
                   onChange={handleChange}
                   className={`${inputClass(theme.focus)} font-mono tabular-nums`}
-                  placeholder="0.00"
+                  placeholder="Enter fee amount (e.g., 100)"
                 />
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  Enter any amount (e.g., 50, 100, 200). Clear the field for no fee. Negative values are not allowed.
+                </p>
               </div>
             )}
 

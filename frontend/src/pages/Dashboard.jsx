@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { RefreshCw, PiggyBank, ArrowDownCircle, Scale, Users, CalendarDays, Download, SlidersHorizontal, Search, AlertTriangle, ChevronDown } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import React, { useCallback, useDeferredValue, useEffect, useRef, useState, useTransition } from 'react';
+import { RefreshCw, PiggyBank, ArrowDownCircle, Scale, Users, CalendarDays, SlidersHorizontal, Search, AlertTriangle, ChevronDown, FileSpreadsheet, Loader2 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import LedgerTable from '../components/LedgerTable';
 import MetricCard from '../components/MetricCard';
 import ConfirmModal from '../components/ConfirmModal';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
+import { buildWorkerPivotFromGrid, exportWorkerPivotXlsx } from '../utils/workerPivotExport';
+import { useDashboardFilters } from '../hooks/useDashboardFilters';
 
 const toDateKey = (value) => {
   if (!value) return '';
@@ -26,61 +27,148 @@ const Dashboard = () => {
   const [transactions, setTransactions] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  // True while a grid revalidation is in progress after data already exists —
+  // the previous table stays mounted and only a subtle overlay is shown.
+  const [gridUpdating, setGridUpdating] = useState(false);
+
+  // Racing-fetch guards: every request carries a monotonically increasing id,
+  // superseded requests are aborted (AbortController) *and* ignored on
+  // completion, so a slow stale response can never overwrite fresh filtered
+  // data. gridLoadedRef flips once the first payload lands; later refreshes
+  // keep the table mounted instead of flipping back to the splash (the blink).
+  const fetchSeqRef = useRef(0);
+  const txSeqRef = useRef(0);
+  const membersSeqRef = useRef(0);
+  const gridAbortRef = useRef(null);
+  const txAbortRef = useRef(null);
+  const membersAbortRef = useRef(null);
+  const gridLoadedRef = useRef(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [selectedVillage, setSelectedVillage] = useState('');
-  const [selectedWorker, setSelectedWorker] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+
+  // Dashboard filters persist across tab switches and route navigation. The
+  // hook seeds from the URL query params (deep link / back-forward) falling
+  // back to its sessionStorage cache, and re-writes both on every change.
+  // Alias the hook fields to the page's historical names so the fetch effect,
+  // derived data, and danger-zone flows below stay untouched.
+  const { filters, setFilter, resetFilters } = useDashboardFilters();
+
+  // Filter handlers are wrapped in startTransition: the filter state commits
+  // immediately (URL + storage stay exact) but the heavy re-filter of the
+  // whole table renders in a non-blocking concurrent pass, `isFiltering`
+  // spans that pass → used for the subtle "updating" overlay.
+  const [isFiltering, startFilterTransition] = useTransition();
+  const setSearchTerm = (value) => startFilterTransition(() => setFilter('search', value || ''));
+  const setSelectedVillage = (value) => startFilterTransition(() => setFilter('village', value || ''));
+  const setSelectedWorker = (value) => startFilterTransition(() => setFilter('worker', value || ''));
+  const setTransactionStatus = (value) => startFilterTransition(() => setFilter('status', value || 'all'));
+  const setDateFrom = (value) => startFilterTransition(() => setFilter('dateFrom', value || ''));
+  const setDateTo = (value) => startFilterTransition(() => setFilter('dateTo', value || ''));
+
+  // Urgent values feed the controls (handlers, active-filter flags); the
+  // table derivations below read the deferred copy so typing stays crisp and
+  // the previous table is kept visible while the next one is derived.
+  const searchTerm = filters.search;
+  const selectedVillage = filters.village;
+  const selectedWorker = filters.worker;
+  const transactionStatus = filters.status;
+  const dateFrom = filters.dateFrom;
+  const dateTo = filters.dateTo;
+  const deferredFilters = useDeferredValue(filters);
+  const dSearchTerm = deferredFilters.search;
+  const dSelectedVillage = deferredFilters.village;
+  const dSelectedWorker = deferredFilters.worker;
+  const dTransactionStatus = deferredFilters.status;
+  const dDateFrom = deferredFilters.dateFrom;
+  const dDateTo = deferredFilters.dateTo;
+
   const [workers, setWorkers] = useState([]);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [transactionStatus, setTransactionStatus] = useState('all');
   const [deleteRangeOpen, setDeleteRangeOpen] = useState(false);
   const [deleteRange, setDeleteRange] = useState({ startDate: '', endDate: '' });
   const [showAdvancedTools, setShowAdvancedTools] = useState(false);
   const [dangerOpen, setDangerOpen] = useState(false);
+  // True while the worker pivot .xlsx is being generated (the writer is
+  // synchronous, so the button shows a spinner for that window).
+  const [exportingWorkerSheet, setExportingWorkerSheet] = useState(false);
   // Snapshot of the filters the pending Danger-Zone delete will target, so the
   // confirmation prompt and the API request always match exactly what the user
   // confirmed.
   const [pendingDeleteFilters, setPendingDeleteFilters] = useState(null);
   const { showToast } = useToast();
 
-  const fetchGrid = async (village = selectedVillage, worker = selectedWorker) => {
-    setLoading(true);
-    setError('');
+  const fetchGrid = useCallback(async (village = selectedVillage, worker = selectedWorker) => {
+    const requestId = ++fetchSeqRef.current;
+    gridAbortRef.current?.abort();
+    const controller = new AbortController();
+    gridAbortRef.current = controller;
+
+    // Only the very first load gets the full splash; refreshes keep the
+    // previous table visible and just signal "updating".
+    if (!gridLoadedRef.current) setLoading(true);
+    setGridUpdating(true);
+
     try {
       const res = await api.get('/transactions/ledger/grid', {
         params: {
           ...(village ? { village } : {}),
           ...(worker ? { worker } : {}),
         },
+        signal: controller.signal,
       });
+      // A newer request has superseded this one — drop the result entirely so
+      // the UI never renders a stale (unfiltered) response.
+      if (requestId !== fetchSeqRef.current) return;
       setGrid(res.data);
+      gridLoadedRef.current = true;
       if (res.data.workers) setWorkers(res.data.workers);
+      setError('');
     } catch (err) {
+      const canceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError' || err?.name === 'AbortError';
+      if (canceled || requestId !== fetchSeqRef.current) return;
       setError(err.response?.data?.message || 'Failed to load ledger sheet');
     } finally {
-      setLoading(false);
+      // Only the latest request may close out the loading states; otherwise an
+      // older, slower response would clear the spinner while its replacement
+      // is still in flight (double-blink + stale data window).
+      if (requestId === fetchSeqRef.current) {
+        setGridUpdating(false);
+        setLoading(false);
+      }
     }
-  };
+  }, [selectedVillage, selectedWorker]);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
+    const requestId = ++txSeqRef.current;
+    txAbortRef.current?.abort();
+    const controller = new AbortController();
+    txAbortRef.current = controller;
     try {
-      const res = await api.get('/transactions');
+      const res = await api.get('/transactions', { signal: controller.signal });
+      if (requestId !== txSeqRef.current) return;
       setTransactions(res.data.transactions || []);
     } catch (err) {
-      setTransactions([]);
+      // Cancellation or a superseded request: silently keep whatever the
+      // previous list was — blanking the table out on a transient failure
+      // was part of the flash-to-empty symptom.
+      const canceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError' || err?.name === 'AbortError';
+      if (canceled || requestId !== txSeqRef.current) return;
     }
-  };
+  }, []);
 
-  const fetchMembers = async () => {
+  const fetchMembers = useCallback(async () => {
+    const requestId = ++membersSeqRef.current;
+    membersAbortRef.current?.abort();
+    const controller = new AbortController();
+    membersAbortRef.current = controller;
     try {
-      const res = await api.get('/members');
+      const res = await api.get('/members', { signal: controller.signal });
+      if (requestId !== membersSeqRef.current) return;
       setMembers(res.data.members || []);
     } catch (err) {
-      setMembers([]);
+      const canceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError' || err?.name === 'AbortError';
+      if (canceled || requestId !== membersSeqRef.current) return;
     }
-  };
+  }, []);
 
   // Resolves the Danger-Zone delete criteria: the dropdown's own date inputs
   // win, otherwise fall back to the active From/To date filters. The worker
@@ -144,18 +232,36 @@ const Dashboard = () => {
     }
   };
 
+  // Village/worker are the only server-side grid filters; every other filter
+  // (search, status, date range) applies purely client-side and must NOT
+  // re-trigger these heavier refetches.
   useEffect(() => {
     fetchGrid(selectedVillage, selectedWorker);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVillage, selectedWorker]);
+
+  // Reference data (members + all transactions) is filter-independent — all
+  // filtering derives from these lists client-side. Load once; refetching on
+  // every dropdown change was redundant churn that amplified the blink.
+  useEffect(() => {
     fetchTransactions();
     fetchMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedVillage, selectedWorker]);
+  }, []);
+
+  // Leaving the dashboard aborts any in-flight requests so responses can't
+  // settle after unmount.
+  useEffect(() => () => {
+    gridAbortRef.current?.abort();
+    txAbortRef.current?.abort();
+    membersAbortRef.current?.abort();
+  }, []);
 
   const memberMatchesFilters = (member) => {
     const villageName = (member.villageName || '').trim().toLowerCase();
     const workerName = (member.createdByWorker || '').trim().toLowerCase();
-    const matchesVillage = !selectedVillage || villageName === selectedVillage.trim().toLowerCase();
-    const matchesWorker = !selectedWorker || workerName === selectedWorker.trim().toLowerCase();
+    const matchesVillage = !dSelectedVillage || villageName === dSelectedVillage.trim().toLowerCase();
+    const matchesWorker = !dSelectedWorker || workerName === dSelectedWorker.trim().toLowerCase();
     return matchesVillage && matchesWorker;
   };
 
@@ -169,8 +275,8 @@ const Dashboard = () => {
 
     const dateKey = toDateKey(transaction.date);
     if (!dateKey) return false;
-    if (dateFrom && dateKey < dateFrom) return false;
-    if (dateTo && dateKey > dateTo) return false;
+    if (dDateFrom && dateKey < dDateFrom) return false;
+    if (dDateTo && dateKey > dDateTo) return false;
     return true;
   });
 
@@ -181,9 +287,9 @@ const Dashboard = () => {
   const hasActiveFilters = Boolean(dateFrom || dateTo || selectedVillage || selectedWorker || transactionStatus !== 'all');
 
   const statusMemberIds =
-    transactionStatus === 'done'
+    dTransactionStatus === 'done'
       ? doneMemberIds
-      : transactionStatus === 'pending'
+      : dTransactionStatus === 'pending'
         ? pendingMemberIds
         : allMemberSet;
 
@@ -212,23 +318,23 @@ const Dashboard = () => {
   summaryTotals.depositBalance = summaryTotals.halfAmount + summaryTotals.totalExtraFees;
   summaryTotals.receivedTotal = summaryTotals.totalWithdrawn;
 
-  const visibleDateKeys = (dateFrom || dateTo) ? availableDateKeys.filter((dateKey) => (!dateFrom || dateKey >= dateFrom) && (!dateTo || dateKey <= dateTo)) : availableDateKeys;
+  const visibleDateKeys = (dDateFrom || dDateTo) ? availableDateKeys.filter((dateKey) => (!dDateFrom || dateKey >= dDateFrom) && (!dDateTo || dateKey <= dDateTo)) : availableDateKeys;
 
   const filteredRows = (members || [])
     .filter((member) => memberMatchesFilters(member))
     .filter((member) => {
       const memberId = String(member._id);
-      if (transactionStatus === 'done') return doneMemberIds.has(memberId);
-      if (transactionStatus === 'pending') return pendingMemberIds.has(memberId);
+      if (dTransactionStatus === 'done') return doneMemberIds.has(memberId);
+      if (dTransactionStatus === 'pending') return pendingMemberIds.has(memberId);
       return true;
     })
     .filter((member) => {
       const text = `${member.name || ''} ${member.jNo || ''} ${member.villageName || ''}`.toLowerCase();
-      return !searchTerm || text.includes(searchTerm.toLowerCase());
+      return !dSearchTerm || text.includes(dSearchTerm.toLowerCase());
     })
     .map((member, index) => {
       const memberId = String(member._id);
-      const memberTransactions = transactionStatus === 'pending'
+      const memberTransactions = dTransactionStatus === 'pending'
         ? []
         : rangeTransactions.filter((transaction) => String(transaction.member?._id || transaction.member || '') === memberId);
 
@@ -276,12 +382,13 @@ const Dashboard = () => {
   filteredGrandTotals.halfAmount = filteredGrandTotals.totalDeposited / 2;
 
   const clearAllFilters = () => {
-    setDateFrom('');
-    setDateTo('');
-    setSelectedVillage('');
-    setSelectedWorker('');
-    setSearchTerm('');
-    setTransactionStatus('all');
+    // Wipes URL params + sessionStorage cache + active state (hook), then
+    // refetches the grid with default criteria. The mount effect below would
+    // handle village/worker changes too, but an explicit fetch covers the
+    // case where the persisted selection already matched the defaults.
+    resetFilters();
+    setDeleteRange({ startDate: '', endDate: '' });
+    fetchGrid('', '');
   };
 
   const handleToggleAdvancedTools = () => {
@@ -299,93 +406,46 @@ const Dashboard = () => {
   const hasDateRange = Boolean(dateFrom || dateTo);
   const hasSelectedFilters = Boolean(dateFrom || dateTo || selectedVillage || selectedWorker);
 
-  const formatExportDate = (value) => {
-    if (!value) return 'All';
-    const date = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(date.getTime())) return 'All';
-    return `${String(date.getDate()).padStart(2, '0')}${date.toLocaleString('en-US', { month: 'short' })}`;
-  };
+  /* ── Worker pivot export (.xlsx: name | j.no | worker | dates… | total | half) ── */
 
-  const exportFilteredTransactions = () => {
-    const exportSource = [...transactions]
-      .filter((transaction) => {
-        const memberId = String(transaction.member?._id || transaction.member || '');
-        if (!allMemberSet.has(memberId)) return false;
+  const handleExportWorkerSheet = () => {
+    if (exportingWorkerSheet) return;
+    if (filteredRows.length === 0) {
+      const message = 'Nothing to export — no workers match the current filters.';
+      setError(message);
+      showToast(message, 'error', 'Export Failed');
+      return;
+    }
 
-        const dateKey = toDateKey(transaction.date);
-        if (!dateKey) return false;
-        if (dateFrom && dateKey < dateFrom) return false;
-        if (dateTo && dateKey > dateTo) return false;
-
-        if (!searchTerm) return true;
-
-        const memberName = transaction.member?.name || '';
-        const memberJNo = transaction.member?.jNo || '';
-        const villageName = transaction.member?.villageName || transaction.villageName || '';
-        const searchText = `${memberName} ${memberJNo} ${villageName}`.toLowerCase();
-        return searchText.includes(searchTerm.toLowerCase());
-      })
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    const rows = exportSource.map((transaction) => {
-      const baseAmount = Number(transaction.amount || 0);
-      const extraFee = Number(transaction.extraFee || 0);
-      const originalEnteredAmount = transaction.type === 'deposit'
-        ? Number(transaction.originalEnteredAmount ?? baseAmount)
-        : baseAmount;
-      const effectiveAmount = transaction.type === 'deposit'
-        ? Number(transaction.effectiveDepositBalance ?? baseAmount * 0.5)
-        : baseAmount;
-      const remainingBalance = transaction.type === 'deposit'
-        ? Number(transaction.remainingBalance ?? effectiveAmount)
-        : 0;
-      const halfAmount = transaction.type === 'deposit' ? effectiveAmount : baseAmount;
-      const totalAmount = halfAmount + extraFee;
-
-      return {
-        Date: new Date(transaction.date).toLocaleDateString('en-IN', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-        }),
-        'User Name': transaction.member?.name || '—',
-        Phone: transaction.member?.phone || '—',
-        Village: transaction.member?.villageName || transaction.villageName || '—',
-        Worker: transaction.member?.createdByWorker || '—',
-        Type: transaction.type === 'deposit' ? 'Deposit' : 'Withdrawal',
-        'Original Entered Amount': Number(originalEnteredAmount.toFixed(2)),
-        'Effective Deposit Balance (50%)': Number(effectiveAmount.toFixed(2)),
-        'Remaining Deposit Balance': Number(remainingBalance.toFixed(2)),
-        'Extra Fee': Number(extraFee.toFixed(2)),
-        'Usable Amount': Number(halfAmount.toFixed(2)),
-        'Total Amount': Number(totalAmount.toFixed(2)),
-        Status: transactionStatus === 'pending' ? 'Pending' : 'Completed',
-        Notes: transaction.note || '',
-      };
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{
-      Date: '',
-      'User Name': '',
-      Phone: '',
-      Village: '',
-      Worker: '',
-      Type: '',
-      'Base Amount': '',
-      'Extra Fee (+100)': '',
-      'Half Amount (50%)': '',
-      'Total Amount': '',
-      Status: '',
-      Notes: '',
-    }]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
-
-    const fileName = dateFrom || dateTo
-      ? `Transactions_${formatExportDate(dateFrom || dateTo)}_to_${formatExportDate(dateTo || dateFrom)}.xlsx`
-      : 'All_Transactions.xlsx';
-
-    XLSX.writeFile(workbook, fileName);
+    setExportingWorkerSheet(true);
+    // Yield one frame so the loading state paints before the synchronous
+    // workbook generation starts.
+    window.setTimeout(() => {
+      try {
+        // Pivot exactly what the ledger table shows: the same rows and the
+        // same visible date columns (already narrowed by the date filters).
+        const pivot = buildWorkerPivotFromGrid(filteredRows, visibleDateKeys);
+        const exported = exportWorkerPivotXlsx(pivot, { dateFrom, dateTo, sheetName: 'Worker Sheet' });
+        if (exported) {
+          showToast(
+            `Worker sheet exported (${pivot.rows.length} workers, ${pivot.dates.length} dates).`,
+            'success',
+            'Worker Sheet Exported'
+          );
+          setError('');
+        } else {
+          const message = 'No transaction data to export.';
+          setError(message);
+          showToast(message, 'error', 'Export Failed');
+        }
+      } catch (err) {
+        const message = `Failed to generate the worker sheet: ${err.response?.data?.message || err.message || err}`;
+        setError(message);
+        showToast(message, 'error', 'Export Failed');
+      } finally {
+        setExportingWorkerSheet(false);
+      }
+    }, 50);
   };
 
   return (
@@ -523,10 +583,14 @@ const Dashboard = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={exportFilteredTransactions}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg shadow-sm flex items-center gap-2"
+                  onClick={handleExportWorkerSheet}
+                  disabled={exportingWorkerSheet || loading}
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-600/40 text-white font-medium px-4 py-2 rounded-lg shadow-sm flex items-center gap-2"
                 >
-                  <Download size={16} /> Export to Excel
+                  {exportingWorkerSheet
+                    ? <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                    : <FileSpreadsheet size={16} aria-hidden="true" />}
+                  {exportingWorkerSheet ? 'Preparing…' : 'Export Worker Sheet'}
                 </button>
               </div>
             </div>
@@ -665,42 +729,58 @@ const Dashboard = () => {
           </div>
         )}
 
-        {!loading && filteredRows.length === 0 && !hasDateRange && transactionStatus === 'all' && (
+        {grid && filteredRows.length === 0 && !hasDateRange && dTransactionStatus === 'all' && (
           <div className="mb-4 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
             No users match the current filters.
           </div>
         )}
 
-        {!loading && filteredRows.length === 0 && (hasDateRange || transactionStatus !== 'all') && (
+        {grid && filteredRows.length === 0 && (hasDateRange || dTransactionStatus !== 'all') && (
           <div className="mb-4 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-            {transactionStatus === 'pending'
+            {dTransactionStatus === 'pending'
               ? 'No pending users found for the selected date range.'
               : 'No matching users or transactions found for the selected filters.'}
           </div>
         )}
 
-        {loading ? (
+        {/* Full-page splash only for the very first load. Every later refresh
+            or filter change keeps the previous table mounted and shows a
+            subtle overlay instead — no unmount/remount blink. */}
+        {!grid && (
           <div className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-16 text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
             <RefreshCw size={18} className="animate-spin text-brand-500" /> Loading ledger sheet...
           </div>
-        ) : (
-          <>
+        )}
+        {grid && (
+          <div
+            className={`relative transition-opacity duration-200 ${
+              gridUpdating || isFiltering ? 'opacity-60 saturate-50' : 'opacity-100 saturate-100'
+            }`}
+          >
+            {(gridUpdating || isFiltering) && (
+              <div className="pointer-events-none absolute inset-x-0 -top-3 z-10 flex justify-center">
+                <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-[11px] font-medium text-ink-soft shadow-sm">
+                  <RefreshCw size={12} className="animate-spin text-brand-500" />
+                  Updating…
+                </span>
+              </div>
+            )}
             <LedgerTable
               dates={visibleDateKeys}
               rows={filteredRows}
               grandTotals={filteredGrandTotals}
-              selectedVillage={selectedVillage}
-              selectedWorker={selectedWorker}
-              searchTerm={searchTerm}
+              selectedVillage={dSelectedVillage}
+              selectedWorker={dSelectedWorker}
+              searchTerm={dSearchTerm}
               selectedDate={''}
             />
 
             <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  {transactionStatus === 'pending'
+                  {dTransactionStatus === 'pending'
                     ? 'Pending Users'
-                    : transactionStatus === 'done'
+                    : dTransactionStatus === 'done'
                       ? 'Completed Transactions'
                       : 'All Transactions'}
                 </h2>
@@ -709,7 +789,7 @@ const Dashboard = () => {
 
               {rangeTransactions.length === 0 ? (
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {transactionStatus === 'pending'
+                  {dTransactionStatus === 'pending'
                     ? 'No transactions found for the selected date range, so all matching users are pending.'
                     : 'No transactions found for the selected filters.'}
                 </p>
@@ -757,7 +837,7 @@ const Dashboard = () => {
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
       </main>
 

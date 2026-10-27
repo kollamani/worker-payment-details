@@ -152,7 +152,7 @@ const UsersList = () => {
                     </p>
                   </div>
                   <span className={`mt-auto inline-flex items-center justify-center gap-1 rounded-full border px-3 py-2 text-xs font-semibold transition-all duration-200 group-hover:scale-[1.02] ${palette.action}`}>
-                    Open ledger
+                    View worker
                     <ChevronRight size={14} className="transition-transform duration-200 group-hover:translate-x-1" />
                   </span>
                 </Link>

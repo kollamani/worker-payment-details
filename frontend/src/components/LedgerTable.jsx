@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 
 const formatMoney = (v) =>
   `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -72,7 +73,7 @@ const LedgerTable = ({
           </p>
         </div>
         <p className="w-fit rounded-full bg-subtle px-3 py-1.5 text-xs font-medium text-ink-muted">
-          Click a worker name to view their full payment history.
+          Open a worker to add transactions or delete them in bulk.
         </p>
       </div>
 
@@ -94,6 +95,7 @@ const LedgerTable = ({
               <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-right font-bold">Half Amount</th>
               <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-right font-bold">Received</th>
               <th className="min-w-[140px] border-b border-line px-4 py-3.5 text-right font-bold">Deposit Balance</th>
+              <th className="min-w-[132px] border-b border-line px-4 py-3.5 text-center font-bold">Actions</th>
             </tr>
           </thead>
 
@@ -160,6 +162,15 @@ const LedgerTable = ({
                 <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-amber-600 dark:text-amber-400">
                   {formatMoney(row.pendingBalance)}
                 </td>
+                <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle">
+                  <Link
+                    to={`/users/${row.memberId}`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-semibold text-brand-700 no-underline transition-colors hover:bg-brand-100 hover:no-underline dark:border-brand-900 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/50"
+                  >
+                    View Worker
+                    <ChevronRight size={13} aria-hidden="true" />
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -187,6 +198,7 @@ const LedgerTable = ({
                 <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-amber-600 dark:text-amber-400">
                   {formatMoney(displayTotals.pendingBalance)}
                 </td>
+                <td />
               </tr>
             </tfoot>
           )}
