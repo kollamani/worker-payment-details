@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 
 const formatMoney = (v) =>
   `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -13,20 +14,17 @@ const LedgerTable = ({
   dates,
   rows,
   grandTotals,
-  villages = [],
-  workers = [],
   selectedVillage,
-  setSelectedVillage,
   selectedWorker,
-  setSelectedWorker,
   searchTerm,
-  setSearchTerm,
+  selectedDate,
 }) => {
   const visibleRows = (rows || []).filter((row) => {
     const term = (searchTerm || '').trim().toLowerCase();
     if (!term) return true;
     return (
-      row.name?.toLowerCase().includes(term) ||
+      (row.workerName ?? row.name)?.toLowerCase().includes(term) ||
+      (row.admin ?? row.createdByWorker)?.toLowerCase().includes(term) ||
       row.jNo?.toLowerCase().includes(term) ||
       row.villageName?.toLowerCase().includes(term)
     );
@@ -49,96 +47,85 @@ const LedgerTable = ({
   const emptyState = (!rows || rows.length === 0) && !selectedVillage && !searchTerm;
 
   if (emptyState) {
+    if (selectedDate) {
+      return (
+        <div className="rounded-xl border border-dashed border-line-strong bg-surface py-16 text-center text-sm text-ink-muted">
+          No user activity or transactions found for {new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}.
+        </div>
+      );
+    }
+
     return (
-      <div className="text-center py-16 text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
-        No members or transactions yet. Add a member and record a transaction to see the ledger sheet.
+      <div className="rounded-xl border border-dashed border-line-strong bg-surface py-16 text-center text-sm text-ink-muted">
+        No workers or transactions yet. Add a worker and record a transaction to see the ledger sheet.
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 border-b border-gray-200 bg-gray-50">
-        <div className="relative flex-1 max-w-md">
-          <input
-            value={searchTerm || ''}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by member name or J.No..."
-            className="w-full pl-3 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
-          />
+    <div className="overflow-hidden rounded-xl border border-line/80 bg-surface shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-line/80 bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-ink">Ledger Sheet</h2>
+          <p className="mt-1 text-xs font-medium text-ink-muted">
+            {visibleRows.length} of {(rows || []).length} workers
+            {selectedVillage || selectedWorker ? ' · filtered' : ''}
+          </p>
         </div>
-
-        <div className="flex flex-col sm:flex-row gap-3 min-w-[480px]">
-          <div className="min-w-[220px]">
-            <select
-              value={selectedVillage || ''}
-              onChange={(e) => setSelectedVillage(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
-            >
-              <option value="">All Villages</option>
-              {villages.map((village) => (
-                <option key={village} value={village}>
-                  {village}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="min-w-[220px]">
-            <select
-              value={selectedWorker || ''}
-              onChange={(e) => setSelectedWorker(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
-            >
-              <option value="">All Workers</option>
-              {workers.map((worker) => (
-                <option key={worker} value={worker}>
-                  {worker}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <p className="w-fit rounded-full bg-subtle px-3 py-1.5 text-xs font-medium text-ink-muted">
+          Open a worker to add transactions or delete them in bulk.
+        </p>
       </div>
 
-      <div className="overflow-x-auto whitespace-nowrap">
+      <div className="max-h-[70vh] overflow-x-auto overflow-y-auto">
         <table className="min-w-full table-fixed border-collapse text-sm">
-          <thead className="sticky top-0 z-10">
-            <tr className="bg-blue-700 text-white text-xs uppercase tracking-wide">
-              <th className="px-3 py-3 text-center font-bold min-w-[60px] border border-blue-800">S.No</th>
-              <th className="px-3 py-3 text-center font-bold min-w-[80px] border border-blue-800">J.No</th>
-              <th className="px-3 py-3 text-left font-bold min-w-[180px] border border-blue-800">Member Name</th>
-              <th className="px-3 py-3 text-left font-bold min-w-[120px] border border-blue-800">Village Name</th>
-              <th className="px-3 py-3 text-left font-bold min-w-[180px] border border-blue-800">Worker</th>
+          <thead className="sticky top-0 z-10 shadow-sm">
+            <tr className="bg-subtle/90 text-[11px] uppercase tracking-[0.12em] text-ink-soft">
+              <th className="min-w-[56px] border-b border-line px-4 py-3.5 text-center font-bold">S.No</th>
+              <th className="min-w-[64px] border-b border-line px-4 py-3.5 text-center font-bold">J.No</th>
+              <th className="min-w-[180px] border-b border-line px-4 py-3.5 text-left font-bold">Worker Name</th>
+              <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-left font-bold">Village</th>
+              <th className="min-w-[140px] border-b border-line px-4 py-3.5 text-left font-bold">Admin</th>
               {dates.map((d) => (
-                <th key={d} className="px-3 py-3 text-center font-bold min-w-[100px] border border-blue-800">
+                <th key={d} className="min-w-[92px] border-b border-line px-4 py-3.5 text-center font-bold">
                   {formatDateHeader(d)}
                 </th>
               ))}
-              <th className="px-3 py-3 text-center font-bold min-w-[120px] border border-blue-800">Total Deposit</th>
-              <th className="px-3 py-3 text-center font-bold min-w-[120px] border border-blue-800">Half Amount</th>
-              <th className="px-3 py-3 text-center font-bold min-w-[120px] border border-blue-800">Received</th>
-              <th className="px-3 py-3 text-center font-bold min-w-[120px] border border-blue-800">Pending</th>
+              <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-right font-bold">Total Deposit</th>
+              <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-right font-bold">Half Amount</th>
+              <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-right font-bold">Received</th>
+              <th className="min-w-[140px] border-b border-line px-4 py-3.5 text-right font-bold">Deposit Balance</th>
+              <th className="min-w-[132px] border-b border-line px-4 py-3.5 text-center font-bold">Actions</th>
             </tr>
           </thead>
 
           <tbody>
             {visibleRows.map((row, idx) => (
-              <tr key={row.memberId} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                <td className="px-3 py-2 text-center align-middle text-gray-700 border border-gray-200">{row.sNo}</td>
-                <td className="px-3 py-2 text-center align-middle text-gray-700 font-medium border border-gray-200">
-                  {row.jNo}
+              <tr
+                key={row.memberId}
+                className={`table-row-hover border-b border-line/70 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 ${
+                  idx % 2 === 1 ? 'bg-subtle/50' : 'bg-surface'
+                }`}
+              >
+                <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle tabular-nums text-ink-muted">
+                  {row.sNo || <span className="text-ink-faint">—</span>}
                 </td>
-                <td className="px-3 py-2 text-left align-middle border border-gray-200">
-                  <Link to={`/users/${row.memberId}`} className="text-brand-700 hover:underline font-medium">
-                    {row.name}
+                <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle tabular-nums text-ink-muted">
+                  {row.jNo || <span className="text-ink-faint">—</span>}
+                </td>
+                <td className="px-4 py-3.5 text-left align-middle">
+                  <Link
+                    to={`/users/${row.memberId}`}
+                    className="worker-nav-link cursor-pointer font-semibold text-brand-700 dark:text-brand-400"
+                  >
+                    {row.workerName ?? row.name ?? <span className="text-ink-faint">—</span>}
                   </Link>
                 </td>
-                <td className="px-3 py-2 text-left align-middle text-gray-600 border border-gray-200">
-                  {row.villageName || '—'}
+                <td className="px-4 py-3.5 text-left align-middle text-ink-soft">
+                  {row.villageName || <span className="text-ink-faint">—</span>}
                 </td>
-                <td className="px-3 py-2 text-left align-middle text-gray-700 font-medium border border-gray-200">
-                  {row.createdByWorker || '—'}
+                <td className="px-4 py-3.5 text-left align-middle text-ink-soft">
+                  {row.admin ?? row.createdByWorker ?? <span className="text-ink-faint">—</span>}
                 </td>
 
                 {dates.map((d) => {
@@ -146,38 +133,43 @@ const LedgerTable = ({
                   const hasData = cell.deposit > 0 || cell.withdrawal > 0;
 
                   return (
-                    <td key={d} className="px-3 py-2 text-center align-middle border border-gray-200 whitespace-nowrap">
+                    <td key={d} className="whitespace-nowrap px-4 py-3.5 text-center align-middle">
                       {hasData ? (
-                        <div className="flex flex-col items-center justify-center leading-tight">
+                        <div className="flex flex-col items-end gap-0.5 font-mono tabular-nums leading-tight">
                           {cell.deposit > 0 && (
-                            <span className="text-green-700 font-medium">+{formatMoney(cell.deposit)}</span>
+                            <span className="font-medium text-emerald-600 dark:text-emerald-400">+{formatMoney(cell.deposit)}</span>
                           )}
                           {cell.withdrawal > 0 && (
-                            <span className="text-amber-700 text-xs">-{formatMoney(cell.withdrawal)}</span>
+                            <span className="text-xs text-amber-600 dark:text-amber-400">-{formatMoney(cell.withdrawal)}</span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-ink-faint">—</span>
                       )}
                     </td>
                   );
                 })}
 
-                <td className="px-3 py-2 text-center align-middle font-semibold text-gray-800 border border-gray-200 whitespace-nowrap">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-medium tabular-nums text-ink">
                   {formatMoney(row.totalDeposited)}
                 </td>
-                <td className="px-3 py-2 text-center align-middle text-gray-600 border border-gray-200 whitespace-nowrap">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono tabular-nums text-orange-500 dark:text-orange-400">
                   {formatMoney(row.halfAmount)}
                 </td>
-                <td className="px-3 py-2 text-center align-middle text-amber-700 border border-gray-200 whitespace-nowrap">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
                   {formatMoney(row.totalWithdrawn)}
                 </td>
-                <td
-                  className={`px-3 py-2 text-center align-middle font-semibold border border-gray-200 whitespace-nowrap ${
-                    row.pendingBalance > 0 ? 'text-red-600' : 'text-green-700'
-                  }`}
-                >
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-amber-600 dark:text-amber-400">
                   {formatMoney(row.pendingBalance)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle">
+                  <Link
+                    to={`/users/${row.memberId}`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-semibold text-brand-700 no-underline transition-colors hover:bg-brand-100 hover:no-underline dark:border-brand-900 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/50"
+                  >
+                    View Worker
+                    <ChevronRight size={13} aria-hidden="true" />
+                  </Link>
                 </td>
               </tr>
             ))}
@@ -185,27 +177,28 @@ const LedgerTable = ({
 
           {displayTotals && (
             <tfoot>
-              <tr className="bg-gray-100 font-semibold border-t-2 border-gray-300">
-                <td className="px-3 py-3 text-left align-middle font-bold border border-gray-300" colSpan={5}>
+              <tr className="border-t-2 border-line bg-subtle/80 font-semibold text-ink">
+                <td className="px-4 py-3.5 text-left align-middle" colSpan={5}>
                   {selectedVillage || selectedWorker
                     ? `${selectedVillage || ''}${selectedVillage && selectedWorker ? ' / ' : ''}${selectedWorker || ''} Totals`
                     : 'Grand Totals'}
                 </td>
                 {dates.map((d) => (
-                  <td key={d} className="border border-gray-300"></td>
+                  <td key={d}></td>
                 ))}
-                <td className="px-3 py-3 text-center align-middle border border-gray-300 whitespace-nowrap">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono tabular-nums">
                   {formatMoney(displayTotals.totalDeposited)}
                 </td>
-                <td className="px-3 py-3 text-center align-middle border border-gray-300 whitespace-nowrap">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono tabular-nums text-ink-soft">
                   {formatMoney(displayTotals.halfAmount)}
                 </td>
-                <td className="px-3 py-3 text-center align-middle border border-gray-300 text-amber-700 whitespace-nowrap">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
                   {formatMoney(displayTotals.totalWithdrawn)}
                 </td>
-                <td className="px-3 py-3 text-center align-middle border border-gray-300 text-red-600 whitespace-nowrap">
+                <td className="whitespace-nowrap px-4 py-3.5 text-right align-middle font-mono font-semibold tabular-nums text-amber-600 dark:text-amber-400">
                   {formatMoney(displayTotals.pendingBalance)}
                 </td>
+                <td />
               </tr>
             </tfoot>
           )}

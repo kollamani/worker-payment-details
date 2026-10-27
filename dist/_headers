@@ -1,0 +1,31 @@
+# Security headers for Netlify / Cloudflare Pages static hosting of the SPA.
+# Vercel ignores this file (it reads frontend/vercel.json) - keep both in sync;
+# backend/tests/security-headers.test.js fails if either drifts from the
+# canonical policy in backend/middleware/securityHeaders.js.
+#
+# Rule order matters: both platforms apply the FIRST matching rule for a path,
+# so the hashed asset rule must come before the catch-all.
+#
+#   Print the canonical values:  cd backend && npm run verify:headers -- --print
+
+# Vite emits content-hashed filenames (index-<hash>.js/css): safe to cache for
+# a year. Without this the app re-downloads its bundle on every visit.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*
+  Content-Security-Policy: default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; script-src-elem 'self'; script-src-attr 'none'; style-src 'self'; style-src-elem 'self'; style-src-attr 'none'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://worker-payment-details.onrender.com; media-src 'none'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'none'; child-src 'none'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer, strict-origin-when-cross-origin
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: same-origin
+  Permissions-Policy: accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(), clipboard-read=(), clipboard-write=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()
+  Origin-Agent-Cluster: ?1
+  X-DNS-Prefetch-Control: off
+  X-Permitted-Cross-Domain-Policies: none
+  X-Download-Options: noopen
+  X-XSS-Protection: 0
+  Cache-Control: no-cache, must-revalidate

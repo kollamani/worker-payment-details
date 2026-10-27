@@ -1,111 +1,1109 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, PiggyBank, Scale, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  PiggyBank,
+  Scale,
+  ArrowDownCircle,
+  Pencil,
+  Trash2,
+  X,
+  Save,
+  Wallet,
+  PlusCircle,
+  Loader2,
+  Inbox,
+} from 'lucide-react';
 import Navbar from '../components/Navbar';
 import MetricCard from '../components/MetricCard';
+import ConfirmModal from '../components/ConfirmModal';
+import SelectionCheckbox from '../components/SelectionCheckbox';
+import AddWorkerTransactionModal from '../components/AddWorkerTransactionModal';
 import api from '../api/axios';
+import { useToast } from '../context/ToastContext';
+import { formatUtcDateDisplay, toUtcDateKey } from '../utils/dates';
+import {
+  TRANSACTION_STATUS_CLASSES,
+  PAYMENT_METHOD_OPTIONS,
+  formatPaymentMethod,
+  formatTransactionType,
+  getTransactionStatus,
+  shortTransactionId,
+} from '../utils/transactions';
+
+const HistoryActions = ({ transaction, actionLoading, onEdit, onDelete }) => (
+  <div className="flex items-center justify-center gap-2">
+    <button
+      type="button"
+      onClick={() => onEdit(transaction)}
+      disabled={actionLoading[transaction.id] === 'edit' || actionLoading[transaction.id] === 'delete'}
+      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-60 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900/60"
+    >
+      <Pencil size={14} /> {actionLoading[transaction.id] === 'edit' ? 'Saving...' : 'Edit'}
+    </button>
+    <button
+      type="button"
+      onClick={() => onDelete(transaction)}
+      disabled={actionLoading[transaction.id] === 'edit' || actionLoading[transaction.id] === 'delete'}
+      className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-surface px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
+    >
+      <Trash2 size={14} /> {actionLoading[transaction.id] === 'delete' ? 'Deleting...' : 'Delete'}
+    </button>
+  </div>
+);
+
+const transactionKey = (transaction) => String(transaction?.id ?? transaction?._id ?? '');
+
+const StatusPill = ({ transaction }) => {
+  const status = getTransactionStatus(transaction);
+  return (
+    <span
+      className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+        TRANSACTION_STATUS_CLASSES[status.key] || TRANSACTION_STATUS_CLASSES.active
+      }`}
+    >
+      {status.label}
+    </span>
+  );
+};
+
+const TransactionHistoryTables = ({
+  deposits,
+  withdrawals,
+  availablePool,
+  totalWithdrawn,
+  formatMoney,
+  actionLoading,
+  onEdit,
+  onDelete,
+  selectedIds = [],
+  onToggleRow,
+  onToggleMany,
+}) => {
+  const depositTotals = deposits.reduce(
+    (totals, transaction) => {
+      const raw = Number(transaction.originalEnteredAmount ?? transaction.amount ?? 0);
+      const effective = Number(transaction.calculatedAmount ?? transaction.effectiveDepositBalance ?? raw * 0.5);
+      const fee = Number(transaction.extraFee || 0);
+      totals.raw += raw;
+      totals.effective += effective;
+      totals.fee += fee;
+      totals.total += effective + fee;
+      return totals;
+    },
+    { raw: 0, effective: 0, fee: 0, total: 0 }
+  );
+  const withdrawalTotal = totalWithdrawn ?? withdrawals.reduce((total, transaction) => total + Number(transaction.amount || 0), 0);
+  const remainingNetBalance = availablePool - withdrawalTotal;
+
+  const selectedSet = new Set((selectedIds || []).map(String));
+  const depositIds = deposits.map(transactionKey);
+  const withdrawalIds = withdrawals.map(transactionKey);
+  const allDepositsSelected = depositIds.length > 0 && depositIds.every((id) => selectedSet.has(id));
+  const someDepositsSelected = depositIds.some((id) => selectedSet.has(id));
+  const allWithdrawalsSelected = withdrawalIds.length > 0 && withdrawalIds.every((id) => selectedSet.has(id));
+  const someWithdrawalsSelected = withdrawalIds.some((id) => selectedSet.has(id));
+
+  const emptyMessage = (label, tint) => (
+    <p className={`p-5 text-sm ${tint}`}>No {label} transactions found.</p>
+  );
+
+  return (
+    <div className="space-y-8">
+      <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm dark:border-emerald-900 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50/80 px-4 py-3 dark:border-emerald-900/70 dark:bg-emerald-950/50">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Deposit History</h2>
+          <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-semibold text-white dark:bg-emerald-500 dark:text-emerald-950">
+            {deposits.length} record(s)
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          {deposits.length === 0 ? emptyMessage('deposit', 'text-emerald-700/70 dark:text-emerald-400/80') : (
+            <table className="min-w-full border-collapse text-sm">
+              <thead className="bg-emerald-700 text-xs uppercase tracking-wide text-white dark:bg-emerald-800">
+                <tr>
+                  <th className="w-10 px-3 py-3 text-center">
+                    <SelectionCheckbox
+                      checked={allDepositsSelected}
+                      indeterminate={someDepositsSelected && !allDepositsSelected}
+                      onChange={(event) => onToggleMany(depositIds, event.target.checked)}
+                      label="Select all deposit transactions"
+                    />
+                  </th>
+                  <th className="px-3 py-3 text-left">Date</th>
+                  <th className="px-3 py-3 text-left">Transaction ID / Type</th>
+                  <th className="px-3 py-3 text-right">Raw Deposit Amount</th>
+                  <th className="px-3 py-3 text-right">50% Effective Balance</th>
+                  <th className="px-3 py-3 text-right">Extra Fee</th>
+                  <th className="px-3 py-3 text-right">Total for Date</th>
+                  <th className="px-3 py-3 text-left">Payment</th>
+                  <th className="px-3 py-3 text-left">Note / Description</th>
+                  <th className="px-3 py-3 text-center">Status</th>
+                  <th className="px-3 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-emerald-50 dark:divide-emerald-900/60">
+                {deposits.map((transaction) => {
+                  const raw = Number(transaction.originalEnteredAmount ?? transaction.amount ?? 0);
+                  const effective = Number(transaction.calculatedAmount ?? transaction.effectiveDepositBalance ?? raw * 0.5);
+                  const fee = Number(transaction.extraFee || 0);
+                  const key = transactionKey(transaction);
+                  return (
+                    <tr key={key} className="table-row-hover hover:bg-emerald-50/60 dark:hover:bg-emerald-950/40">
+                      <td className="px-3 py-3 text-center">
+                        <SelectionCheckbox
+                          checked={selectedSet.has(key)}
+                          onChange={() => onToggleRow(key)}
+                          label={`Select deposit transaction ${shortTransactionId(transaction)}`}
+                        />
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-700 dark:text-slate-300">{formatUtcDateDisplay(transaction.date)}</td>
+                      <td className="whitespace-nowrap px-3 py-3">
+                        <p className="font-mono text-xs text-slate-700 dark:text-slate-300" title={key}>
+                          {shortTransactionId(transaction)}
+                        </p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                          {formatTransactionType(transaction.type)}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(raw)}</td>
+                      <td className="px-3 py-3 text-right font-mono tabular-nums text-indigo-700 dark:text-indigo-300">{formatMoney(effective)}</td>
+                      <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(fee)}</td>
+                      <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatMoney(effective + fee)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-600 dark:text-slate-400">{formatPaymentMethod(transaction.paymentMethod)}</td>
+                      <td className="max-w-[14rem] px-3 py-3 text-slate-600 dark:text-slate-400">{transaction.note || '—'}</td>
+                      <td className="px-3 py-3 text-center">
+                        <StatusPill transaction={transaction} />
+                      </td>
+                      <td className="px-3 py-3">
+                        <HistoryActions transaction={transaction} actionLoading={actionLoading} onEdit={onEdit} onDelete={onDelete} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="border-t-2 border-emerald-100 bg-emerald-50/70 font-semibold dark:border-emerald-900 dark:bg-emerald-950/50">
+                <tr>
+                  <td className="px-3 py-3" colSpan={3}>Deposit Sub-Total</td>
+                  <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(depositTotals.raw)}</td>
+                  <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(depositTotals.effective)}</td>
+                  <td className="px-3 py-3 text-right font-mono tabular-nums">{formatMoney(depositTotals.fee)}</td>
+                  <td className="px-3 py-3 text-right font-mono tabular-nums text-emerald-600 dark:text-emerald-400">{formatMoney(depositTotals.total)}</td>
+                  <td colSpan={4} />
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm dark:border-amber-900 dark:bg-slate-900">
+        <div className="flex flex-col gap-3 border-b border-amber-100 bg-amber-50/80 px-4 py-3 sm:flex-row sm:items-end sm:justify-between dark:border-amber-900/70 dark:bg-amber-950/50">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">Withdrawal / Received History</h2>
+            <p className="mt-1 text-xs text-amber-800/70 dark:text-amber-300/80">Net Pool Balance = (50% Deposit + Extra Fee) - Total Withdrawals</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:min-w-[360px]">
+            <div className="rounded-lg border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-slate-950/60">
+              <p className="text-[11px] font-semibold uppercase text-amber-700 dark:text-amber-300">Total Withdrawn / Received</p>
+              <p className="font-mono text-lg font-bold tabular-nums text-amber-700 dark:text-amber-300">{formatMoney(withdrawalTotal)}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
+              <p className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">Remaining Net Balance</p>
+              <p className="font-mono text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{formatMoney(remainingNetBalance)}</p>
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          {withdrawals.length === 0 ? emptyMessage('withdrawal / received', 'text-amber-800/70 dark:text-amber-300/80') : (
+            <table className="min-w-full border-collapse text-sm">
+              <thead className="bg-amber-600 text-xs uppercase tracking-wide text-white dark:bg-amber-700">
+                <tr>
+                  <th className="w-10 px-3 py-3 text-center">
+                    <SelectionCheckbox
+                      checked={allWithdrawalsSelected}
+                      indeterminate={someWithdrawalsSelected && !allWithdrawalsSelected}
+                      onChange={(event) => onToggleMany(withdrawalIds, event.target.checked)}
+                      label="Select all withdrawal transactions"
+                    />
+                  </th>
+                  <th className="px-3 py-3 text-left">Withdrawal Date</th>
+                  <th className="px-3 py-3 text-left">Transaction ID / Type</th>
+                  <th className="px-3 py-3 text-left">Deducted From Deposit Date</th>
+                  <th className="px-3 py-3 text-right">Withdrawn / Received Amount</th>
+                  <th className="px-3 py-3 text-right">Remaining Deposit Pool</th>
+                  <th className="px-3 py-3 text-left">Payment</th>
+                  <th className="px-3 py-3 text-left">Note / Description</th>
+                  <th className="px-3 py-3 text-center">Status</th>
+                  <th className="px-3 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-50 dark:divide-amber-900/60">
+                {withdrawals.map((transaction) => {
+                  const key = transactionKey(transaction);
+                  return (
+                    <tr key={key} className="table-row-hover hover:bg-amber-50/60 dark:hover:bg-amber-950/40">
+                      <td className="px-3 py-3 text-center">
+                        <SelectionCheckbox
+                          checked={selectedSet.has(key)}
+                          onChange={() => onToggleRow(key)}
+                          label={`Select withdrawal transaction ${shortTransactionId(transaction)}`}
+                        />
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-700 dark:text-slate-300">{formatUtcDateDisplay(transaction.date)}</td>
+                      <td className="whitespace-nowrap px-3 py-3">
+                        <p className="font-mono text-xs text-slate-700 dark:text-slate-300" title={key}>
+                          {shortTransactionId(transaction)}
+                        </p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                          {formatTransactionType(transaction.type)}
+                        </p>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-600 dark:text-slate-400">
+                        {transaction.deductFromDepositDate || transaction.sourceDepositDate
+                          ? formatUtcDateDisplay(transaction.deductFromDepositDate || transaction.sourceDepositDate)
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums text-amber-600 dark:text-amber-400">{formatMoney(transaction.amount)}</td>
+                      <td className="px-3 py-3 text-right font-mono tabular-nums">
+                        {transaction.remainingBalanceAfterDeduction == null ? '—' : formatMoney(transaction.remainingBalanceAfterDeduction)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-600 dark:text-slate-400">{formatPaymentMethod(transaction.paymentMethod)}</td>
+                      <td className="px-3 py-3 text-slate-600 dark:text-slate-400">{transaction.note || '—'}</td>
+                      <td className="px-3 py-3 text-center">
+                        <StatusPill transaction={transaction} />
+                      </td>
+                      <td className="px-3 py-3">
+                        <HistoryActions transaction={transaction} actionLoading={actionLoading} onEdit={onEdit} onDelete={onDelete} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="border-t-2 border-amber-100 bg-amber-50/70 font-semibold dark:border-amber-900 dark:bg-amber-950/50">
+                <tr>
+                  <td className="px-3 py-3" colSpan={4}>Withdrawal / Received Sub-Total</td>
+                  <td className="px-3 py-3 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400">{formatMoney(withdrawalTotal)}</td>
+                  <td colSpan={5} />
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+};
 
 const UserDetail = () => {
   const { id } = useParams();
+  const { showToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [transactionToDelete, setTransactionToDelete] = useState(null);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [editingForm, setEditingForm] = useState({
+    date: '',
+    type: 'deposit',
+    amount: '',
+    note: '',
+    villageName: '',
+    paymentMethod: 'cash',
+    hasExtraFee: false,
+    extraFee: 0,
+  });
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [appliedDateFrom, setAppliedDateFrom] = useState('');
+  const [appliedDateTo, setAppliedDateTo] = useState('');
+  const [editingError, setEditingError] = useState('');
+  const [actionLoading, setActionLoading] = useState({});
+  const [selectedTransactionIds, setSelectedTransactionIds] = useState([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const fetchSummary = async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true);
+    setError('');
+    try {
+      const res = await api.get(`/members/${id}/summary`);
+      setData(res.data);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load member summary');
+    } finally {
+      if (!quiet) setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchSummary = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const res = await api.get(`/members/${id}/summary`);
-        setData(res.data);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load member summary');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const submitDelete = async () => {
+    if (!transactionToDelete) return;
+
+    setActionLoading((prev) => ({ ...prev, [transactionToDelete.id]: 'delete' }));
+    try {
+      await api.delete(`/transactions/${transactionToDelete.id}`);
+      setSuccess('Transaction deleted successfully.');
+      showToast('Transaction deleted successfully.', 'success', 'Transaction Deleted');
+      setTransactionToDelete(null);
+      await fetchSummary();
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to delete transaction';
+      setError(message);
+      showToast(`Failed to delete transaction: ${message}`, 'error', 'Action Failed');
+    } finally {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[transactionToDelete.id];
+        return next;
+      });
+    }
+  };
+
+  const submitDeleteAll = async () => {
+    setActionLoading((prev) => ({ ...prev, allTransactions: 'delete' }));
+    try {
+      await api.delete(`/transactions/user/${id}/all`);
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              timeline: [],
+              summary: {
+                ...prev.summary,
+                totalDeposited: 0,
+                halfAmount: 0,
+                totalDepositBalance: 0,
+                totalDepositAmount: 0,
+                eligibleHalfAmountTotal: 0,
+                totalWithdrawn: 0,
+                totalReceivedAmount: 0,
+                remainingHalfBalance: 0,
+                pendingBalance: 0,
+                totalExtraFees: 0,
+              },
+            }
+          : prev
+      );
+      setDeleteAllOpen(false);
+      setSuccess('All transactions deleted successfully.');
+      showToast('All transactions deleted successfully.', 'success', 'Transactions Deleted');
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to delete all transactions';
+      setError(message);
+      showToast(`Failed to delete all transactions: ${message}`, 'error', 'Action Failed');
+      setDeleteAllOpen(false);
+    } finally {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next.allTransactions;
+        return next;
+      });
+    }
+  };
+
+  const openEditModal = (transaction) => {
+    setEditingError('');
+    setEditingTransaction(transaction);
+    setEditingForm({
+      date: transaction.date ? toUtcDateKey(transaction.date) : '',
+      type: transaction.type || 'deposit',
+      amount: transaction.amount ?? '',
+      note: transaction.note || '',
+      villageName: transaction.villageName || data?.member?.villageName || '',
+      paymentMethod: transaction.paymentMethod || 'cash',
+      hasExtraFee: Number(transaction.extraFee || 0) > 0,
+      extraFee: Number(transaction.extraFee || 0),
+    });
+  };
+
+  /* ── Add transaction (always scoped to this worker) ── */
+
+  const handleAddTransaction = async (payload) => {
+    const res = await api.post('/transactions', payload);
+    const created = res.data?.transaction;
+
+    // Optimistic insert so the new row appears immediately; fetchSummary below
+    // reconciles every derived balance from the server.
+    if (created) {
+      const optimisticRow = {
+        ...created,
+        id: created._id || created.id,
+        originalEnteredAmount: created.originalEnteredAmount ?? created.amount,
+        effectiveDepositBalance: created.effectiveDepositBalance ?? Number(created.amount || 0) * 0.5,
+        remainingBalance: created.remainingBalance ?? Number(created.amount || 0) * 0.5,
+        calculatedAmount:
+          created.type === 'deposit'
+            ? created.effectiveDepositBalance ?? Number(created.amount || 0) * 0.5
+            : Number(created.amount || 0),
+      };
+      setData((prev) =>
+        prev ? { ...prev, timeline: [...(prev.timeline || []), optimisticRow] } : prev
+      );
+    }
+
+    setSuccess('Transaction added successfully.');
+    showToast(
+      `${formatMoney(payload.amount)} transaction added successfully.`,
+      'success',
+      'Transaction Added'
+    );
+    await fetchSummary({ quiet: true });
+  };
+
+  /* ── Selection ── */
+
+  const handleToggleTransaction = (transactionId) => {
+    const key = String(transactionId);
+    setSelectedTransactionIds((previous) =>
+      previous.includes(key) ? previous.filter((id) => id !== key) : [...previous, key]
+    );
+  };
+
+  const handleToggleManyTransactions = (transactionIds, checked) => {
+    const keys = transactionIds.map(String);
+    setSelectedTransactionIds((previous) => {
+      const next = new Set(previous);
+      if (checked) keys.forEach((key) => next.add(key));
+      else keys.forEach((key) => next.delete(key));
+      return Array.from(next);
+    });
+  };
+
+  const clearSelection = () => setSelectedTransactionIds([]);
+
+  /* ── Bulk delete ── */
+
+  const submitBulkDelete = async () => {
+    const idsToDelete = [...selectedTransactionIds];
+    if (idsToDelete.length === 0) return;
+
+    setBulkDeleting(true);
+    try {
+      const res = await api.delete('/transactions/bulk', {
+        data: { ids: idsToDelete, memberId: id },
+      });
+      const deletedCount = Number(res.data?.deletedCount ?? res.data?.count ?? 0);
+      const skippedCount = Number(res.data?.skippedCount ?? 0);
+      const deletedSet = new Set(idsToDelete);
+
+      // Drop the rows immediately, then reconcile balances with the server.
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              timeline: (prev.timeline || []).filter(
+                (transaction) => !deletedSet.has(String(transaction.id || transaction._id))
+              ),
+            }
+          : prev
+      );
+
+      setBulkDeleteOpen(false);
+      clearSelection();
+      const summary = `Deleted ${deletedCount} transaction${deletedCount === 1 ? '' : 's'} successfully.`;
+      setSuccess(skippedCount > 0 ? `${summary} ${skippedCount} record(s) were already gone.` : summary);
+      showToast(
+        skippedCount > 0 ? `${summary} ${skippedCount} record(s) were already gone.` : summary,
+        'success',
+        'Transactions Deleted'
+      );
+      await fetchSummary({ quiet: true });
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to delete the selected transactions';
+      setError(message);
+      showToast(`Failed to delete selected transactions: ${message}`, 'error', 'Action Failed');
+      setBulkDeleteOpen(false);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditingForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditingError('');
+
+    if (!editingTransaction) return;
+    if (!editingForm.date) {
+      setEditingError('Please select a date');
+      return;
+    }
+    if (!editingForm.amount || Number(editingForm.amount) <= 0) {
+      setEditingError('Amount must be greater than 0');
+      return;
+    }
+    if (!['deposit', 'withdrawal'].includes(editingForm.type)) {
+      setEditingError('Please select a valid transaction type');
+      return;
+    }
+
+    setActionLoading((prev) => ({ ...prev, [editingTransaction.id]: 'edit' }));
+    try {
+      await api.put(`/transactions/${editingTransaction.id}`, {
+        date: editingForm.date,
+        type: editingForm.type,
+        amount: Number(editingForm.amount),
+        extraFee: editingForm.hasExtraFee ? Number(editingForm.extraFee || 0) : 0,
+        note: editingForm.note || '',
+        villageName: editingForm.villageName || data?.member?.villageName || '',
+        paymentMethod: editingForm.paymentMethod || 'cash',
+      });
+      setSuccess('Transaction updated successfully.');
+      if (editingForm.hasExtraFee && Number(editingForm.extraFee) > 0) {
+        showToast(
+          `Extra fee of ₹${Number(editingForm.extraFee).toLocaleString('en-IN')} updated successfully!`,
+          'success',
+          'Extra Fee Updated'
+        );
+      } else {
+        showToast('Transaction updated successfully.', 'success', 'Transaction Updated');
+      }
+      setEditingTransaction(null);
+      setEditingForm({
+        date: '',
+        type: 'deposit',
+        amount: '',
+        note: '',
+        villageName: '',
+        paymentMethod: 'cash',
+        hasExtraFee: false,
+        extraFee: 0,
+      });
+      await fetchSummary();
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to update transaction';
+      setEditingError(message);
+      showToast(`Failed to update transaction: ${message}`, 'error', 'Action Failed');
+    } finally {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[editingTransaction.id];
+        return next;
+      });
+    }
+  };
+
+  const formatMoney = (value) =>
+    `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const applyDateFilter = () => {
+    setAppliedDateFrom(dateFrom);
+    setAppliedDateTo(dateTo);
+  };
+
+  const clearDateFilter = () => {
+    setDateFrom('');
+    setDateTo('');
+    setAppliedDateFrom('');
+    setAppliedDateTo('');
+  };
+
+  const sortedTimeline = data?.timeline ? [...data.timeline].sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
+  const uniqueTimeline = Array.from(
+    new Map((sortedTimeline || []).map((transaction) => [String(transaction._id || transaction.id), transaction])).values()
+  );
+
+  const filteredTimeline = uniqueTimeline.filter((transaction) => {
+    const transactionDate = toUtcDateKey(transaction.date);
+
+    if (appliedDateFrom && transactionDate < appliedDateFrom) {
+      return false;
+    }
+
+    if (appliedDateTo && transactionDate > appliedDateTo) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const depositTransactions = filteredTimeline.filter((transaction) => String(transaction.type).toLowerCase() === 'deposit');
+  const withdrawalTransactions = filteredTimeline.filter((transaction) => String(transaction.type).toLowerCase() !== 'deposit');
+
+  const overallTotals = filteredTimeline.reduce(
+    (acc, transaction) => {
+      const amount = Number(transaction.amount || 0);
+      const extraFee = Number(transaction.extraFee || 0);
+      acc.baseTotal += amount;
+      acc.extraTotal += extraFee;
+      acc.depositTotal += transaction.type === 'deposit'
+        ? Number(transaction.originalEnteredAmount ?? amount)
+        : 0;
+      acc.halfTotal += transaction.type === 'deposit'
+        ? Number(transaction.effectiveDepositBalance ?? amount * 0.5)
+        : 0;
+      acc.grandTotal += Number(transaction.rowTotal ?? (
+        transaction.type === 'deposit'
+          ? Number(transaction.effectiveDepositBalance ?? amount * 0.5)
+          : amount
+      ) + extraFee);
+      acc.receivedTotal += transaction.type === 'withdrawal' ? amount : 0;
+      return acc;
+    },
+    { baseTotal: 0, depositTotal: 0, extraTotal: 0, grandTotal: 0, halfTotal: 0, receivedTotal: 0 }
+  );
+  overallTotals.remainingHalfBalance = overallTotals.halfTotal - overallTotals.receivedTotal;
+  overallTotals.availablePool = overallTotals.halfTotal + overallTotals.extraTotal;
+  overallTotals.remainingNetBalance = overallTotals.availablePool - overallTotals.receivedTotal;
+
+  /* ── selection derived from the currently visible rows ── */
+  const visibleTransactionIds = filteredTimeline.map((transaction) =>
+    String(transaction.id || transaction._id)
+  );
+  const visibleTransactionKey = visibleTransactionIds.join(',');
+  const selectedTransactionSet = new Set(selectedTransactionIds);
+  const selectedCount = selectedTransactionIds.length;
+  const allVisibleSelected =
+    visibleTransactionIds.length > 0 &&
+    visibleTransactionIds.every((transactionId) => selectedTransactionSet.has(transactionId));
+  const someVisibleSelected = visibleTransactionIds.some((transactionId) =>
+    selectedTransactionSet.has(transactionId)
+  );
+
+  // Changing the date filter or refreshing after a delete can hide/prune rows.
+  // Keep the selection limited to rows that still exist so the action bar never
+  // counts (or deletes) a stale id.
+  useEffect(() => {
+    const validIds = new Set(
+      visibleTransactionKey ? visibleTransactionKey.split(',') : []
+    );
+    setSelectedTransactionIds((previous) => {
+      const next = previous.filter((transactionId) => validIds.has(transactionId));
+      return next.length === previous.length ? previous : next;
+    });
+  }, [visibleTransactionKey]);
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <Navbar />
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link to="/users" className="flex items-center gap-1 text-sm text-brand-700 hover:underline mb-4 w-fit">
-          <ArrowLeft size={16} /> Back to user list
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <Link to="/users" className="worker-nav-link mb-4 flex w-fit items-center gap-1 text-sm text-brand-700 dark:text-brand-400">
+          <ArrowLeft size={16} /> Back to user directory
         </Link>
 
         {error && (
-          <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300">
             {error}
           </div>
         )}
 
+        {success && (
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300">
+            {success}
+          </div>
+        )}
+
         {loading ? (
-          <p className="text-gray-500">Loading...</p>
+          <div className="space-y-5" aria-busy="true" aria-live="polite">
+            <div className="h-28 animate-pulse rounded-2xl border border-line bg-surface/70" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((index) => (
+                <div key={index} className="h-24 animate-pulse rounded-2xl border border-line bg-surface/70" />
+              ))}
+            </div>
+            <div className="h-16 animate-pulse rounded-2xl border border-line bg-surface/70" />
+            <div className="h-72 animate-pulse rounded-2xl border border-line bg-surface/70" />
+            <span className="sr-only">Loading worker details…</span>
+          </div>
         ) : data ? (
-          <>
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold text-gray-800">{data.member.name}</h1>
-              <p className="text-sm text-gray-500">
-                J.No: {data.member.jNo} • Village: {data.member.villageName || '—'} • Created By Worker: {data.member.createdByWorker || '—'}
-                {data.member.phone && ` • Phone: ${data.member.phone}`}
-              </p>
+          <div className="animate-fade-in">
+            <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between dark:border-slate-800 dark:bg-slate-900">
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{data.member.name}</h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">{data.member.jNo}</span>
+                  <span>{data.member.villageName || '—'}</span>
+                  <span>•</span>
+                  <span>Admin: {data.member.createdByWorker || '—'}</span>
+                  {data.member.phone && (
+                    <>
+                      <span>•</span>
+                      <span className="font-mono tabular-nums">{data.member.phone}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-3.5 py-2 text-xs font-semibold text-white shadow-lg shadow-brand-600/25 transition-all hover:from-brand-500 hover:to-brand-400 sm:text-sm"
+                >
+                  <PlusCircle size={16} /> Add Transaction
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteAllOpen(true)}
+                  disabled={sortedTimeline.length === 0 || actionLoading.allTransactions === 'delete'}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/50"
+                >
+                  <Trash2 size={14} /> Delete All Transactions
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <MetricCard label="Total Amount" value={data.summary.totalDeposited} icon={PiggyBank} color="green" />
-              <MetricCard label="Half Value" value={data.summary.halfAmount} icon={Scale} color="blue" />
-              <MetricCard label="Total Received" value={data.summary.totalWithdrawn} icon={ArrowDownCircle} color="green" />
-              <MetricCard label="Net Pending" value={data.summary.pendingBalance} icon={Scale} color="red" />
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filter transactions by date range</h2>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">From Date</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">To Date</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div className="flex items-end gap-2 lg:col-span-2">
+                  <button
+                    type="button"
+                    onClick={applyDateFilter}
+                    className="flex-1 rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-brand-700"
+                  >
+                    Filter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearDateFilter}
+                    className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <h2 className="text-sm font-semibold text-gray-600 uppercase mb-3">Ledger Timeline</h2>
-            <div className="bg-white rounded-xl border border-gray-200 divide-y">
-              {data.timeline.length === 0 ? (
-                <p className="p-4 text-sm text-gray-500">No transactions recorded for this member yet.</p>
-              ) : (
-                data.timeline
-                  .slice()
-                  .reverse()
-                  .map((t) => (
-                    <div key={t.id} className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`p-2 rounded-full ${
-                            t.type === 'deposit' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-                          }`}
-                        >
-                          {t.type === 'deposit' ? <ArrowDownCircle size={18} /> : <ArrowUpCircle size={18} />}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">
-                            {t.type === 'deposit' ? 'Deposit' : 'Received / Withdrawal'}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(t.date).toLocaleDateString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
-                            {t.villageName && ` • Village: ${t.villageName}`}
-                            {t.note && ` — ${t.note}`}
-                          </p>
-                        </div>
-                      </div>
-                      <span
-                        className={`text-sm font-semibold ${
-                          t.type === 'deposit' ? 'text-green-700' : 'text-amber-700'
-                        }`}
-                      >
-                        {t.type === 'deposit' ? '+' : '-'}₹{t.amount.toLocaleString('en-IN')}
-                      </span>
+            <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <MetricCard label="Total Deposit" value={overallTotals.depositTotal} icon={PiggyBank} color="green" />
+              <MetricCard label="Half Amount" value={overallTotals.halfTotal} icon={Scale} color="blue" />
+              <MetricCard label="Extra Fees" value={overallTotals.extraTotal} icon={ArrowDownCircle} color="green" />
+              <MetricCard label="Net Available Balance" value={overallTotals.remainingNetBalance} icon={Wallet} color="amber" />
+            </div>
+
+            {filteredTimeline.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-line-strong bg-surface p-8 text-center shadow-sm sm:p-12">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-subtle text-ink-muted">
+                  <Inbox size={26} aria-hidden="true" />
+                </span>
+                <h2 className="mt-4 text-base font-semibold text-ink">
+                  {uniqueTimeline.length === 0 ? 'No transactions yet' : 'No transactions in this date range'}
+                </h2>
+                <p className="mx-auto mt-1 max-w-md text-sm text-ink-muted">
+                  {uniqueTimeline.length === 0
+                    ? 'Record the first deposit or withdrawal for this worker to start the ledger.'
+                    : 'Clear or adjust the date filter to see this worker’s other transactions.'}
+                </p>
+                {uniqueTimeline.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setAddOpen(true)}
+                    className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-600/25 transition-all hover:from-brand-500 hover:to-brand-400"
+                  >
+                    <PlusCircle size={17} /> Add Transaction
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={clearDateFilter}
+                    className="mt-5 rounded-xl border border-line-strong px-4 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-subtle hover:text-ink"
+                  >
+                    Clear date filter
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <section
+                  aria-label="Bulk transaction actions"
+                  className="mb-4 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <SelectionCheckbox
+                      checked={allVisibleSelected}
+                      indeterminate={someVisibleSelected && !allVisibleSelected}
+                      onChange={(event) =>
+                        handleToggleManyTransactions(visibleTransactionIds, event.target.checked)
+                      }
+                      label="Select all visible transactions"
+                    />
+                    <div>
+                      <h2 className="text-sm font-semibold text-ink">Transactions</h2>
+                      <p className="mt-0.5 text-xs text-ink-muted">
+                        {filteredTimeline.length} record{filteredTimeline.length === 1 ? '' : 's'}
+                        {selectedCount > 0 ? ` · ${selectedCount} selected` : ' · select rows to delete in bulk'}
+                      </p>
                     </div>
-                  ))
-              )}
-            </div>
-          </>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={clearSelection}
+                        disabled={bulkDeleting}
+                        className="rounded-xl border border-line-strong px-3 py-2 text-xs font-medium text-ink-soft transition-colors hover:bg-subtle hover:text-ink disabled:opacity-50"
+                      >
+                        Clear selection
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setBulkDeleteOpen(true)}
+                      disabled={selectedCount === 0 || bulkDeleting}
+                      className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-600/40 disabled:shadow-none"
+                    >
+                      {bulkDeleting ? (
+                        <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Trash2 size={15} aria-hidden="true" />
+                      )}
+                      {bulkDeleting ? 'Deleting…' : `Delete Selected (${selectedCount})`}
+                    </button>
+                  </div>
+                </section>
+
+                <TransactionHistoryTables
+                  deposits={depositTransactions}
+                  withdrawals={withdrawalTransactions}
+                  availablePool={overallTotals.availablePool}
+                  totalWithdrawn={overallTotals.receivedTotal}
+                  formatMoney={formatMoney}
+                  actionLoading={actionLoading}
+                  onEdit={openEditModal}
+                  onDelete={setTransactionToDelete}
+                  selectedIds={selectedTransactionIds}
+                  onToggleRow={handleToggleTransaction}
+                  onToggleMany={handleToggleManyTransactions}
+                />
+              </>
+            )}
+          </div>
         ) : null}
+
+        <ConfirmModal
+          open={!!transactionToDelete}
+          title="Delete transaction"
+          message={`Are you sure you want to delete this transaction for ${data?.member?.name || 'this member'}? This will also update the member balance.`}
+          confirmLabel={actionLoading[transactionToDelete?.id] === 'delete' ? 'Deleting...' : 'Delete'}
+          loading={actionLoading[transactionToDelete?.id] === 'delete'}
+          onConfirm={submitDelete}
+          onCancel={() => setTransactionToDelete(null)}
+        />
+
+        <ConfirmModal
+          open={deleteAllOpen}
+          title="Delete all transactions"
+          message="Are you sure you want to delete all transactions for this user? This action cannot be undone."
+          confirmLabel={actionLoading.allTransactions === 'delete' ? 'Deleting...' : 'Delete All'}
+          loading={actionLoading.allTransactions === 'delete'}
+          onConfirm={submitDeleteAll}
+          onCancel={() => setDeleteAllOpen(false)}
+        />
+
+        <ConfirmModal
+          open={bulkDeleteOpen}
+          title={`Delete ${selectedCount} selected transaction${selectedCount === 1 ? '' : 's'}?`}
+          message={`Are you sure you want to delete ${selectedCount} selected transaction${
+            selectedCount === 1 ? '' : 's'
+          } for ${data?.member?.name || 'this worker'}? This action cannot be undone.`}
+          confirmLabel={bulkDeleting ? 'Deleting…' : `Delete Selected (${selectedCount})`}
+          loading={bulkDeleting}
+          onConfirm={submitBulkDelete}
+          onCancel={() => setBulkDeleteOpen(false)}
+        />
+
+        <AddWorkerTransactionModal
+          open={addOpen}
+          member={data?.member}
+          availableBalance={overallTotals.remainingNetBalance}
+          onSubmit={handleAddTransaction}
+          onClose={() => setAddOpen(false)}
+        />
+
+        {editingTransaction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-slate-900 dark:ring-1 dark:ring-slate-700">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Edit Transaction</h3>
+                <button
+                  type="button"
+                  onClick={() => setEditingTransaction(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  aria-label="Close edit modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {editingError && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300">
+                  {editingError}
+                </div>
+              )}
+
+              <form onSubmit={handleEditSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Date</label>
+                    <input
+                      type="date"
+                      name="date"
+                      value={editingForm.date}
+                      onChange={handleEditChange}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Amount (₹)</label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      name="amount"
+                      value={editingForm.amount}
+                      onChange={handleEditChange}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Type</label>
+                  <select
+                    name="type"
+                    value={editingForm.type}
+                    onChange={handleEditChange}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    <option value="deposit">Deposit</option>
+                    <option value="withdrawal">Withdrawal / Received</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Payment Method</label>
+                  <select
+                    name="paymentMethod"
+                    value={editingForm.paymentMethod}
+                    onChange={handleEditChange}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    {PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/60">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Extra Fee</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Add an optional charge to this transaction</p>
+                    </div>
+                    <label className="relative inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        name="hasExtraFee"
+                        checked={!!editingForm.hasExtraFee}
+                        onChange={(e) =>
+                          setEditingForm((prev) => ({
+                            ...prev,
+                            hasExtraFee: e.target.checked,
+                            extraFee: e.target.checked ? prev.extraFee : 0,
+                          }))
+                        }
+                        className="peer sr-only"
+                      />
+                      <span className="h-6 w-11 rounded-full bg-slate-200 transition-colors duration-200 peer-checked:bg-brand-600 peer-focus:outline-none dark:bg-slate-700" />
+                      <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5" />
+                    </label>
+                  </div>
+
+                  {editingForm.hasExtraFee && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="editingExtraFee">
+                        Extra Fee Amount (₹)
+                      </label>
+                      <input
+                        id="editingExtraFee"
+                        type="number"
+                        name="extraFee"
+                        min="0"
+                        step="0.01"
+                        value={editingForm.extraFee}
+                        onChange={handleEditChange}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Village Name</label>
+                  <input
+                    name="villageName"
+                    value={editingForm.villageName}
+                    onChange={handleEditChange}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    placeholder="Village name"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Note</label>
+                  <input
+                    name="note"
+                    value={editingForm.note}
+                    onChange={handleEditChange}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    placeholder="Remarks"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTransaction(null)}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading[editingTransaction.id] === 'edit'}
+                    className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700 disabled:opacity-60"
+                  >
+                    <Save size={16} />
+                    {actionLoading[editingTransaction.id] === 'edit' ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
