@@ -9,6 +9,7 @@ const {
   deleteAllUserTransactions,
   deleteTransactionsByDateRange,
   getLedgerGrid,
+  deleteTransactionsBulk,
 } = require('../controllers/transactionController');
 const { protect } = require('../middleware/auth');
 
@@ -22,6 +23,8 @@ router.delete('/delete-by-range', deleteTransactionsByDateRange);
 router.delete('/filtered-delete', deleteTransactionsByDateRange);
 router.post('/filter-delete', deleteTransactionsByDateRange);
 router.delete('/user/:userId/all', deleteAllUserTransactions);
+// Must stay above `/:id` so "bulk" is never parsed as a transaction id.
+router.delete('/bulk', deleteTransactionsBulk);
 router.route('/').get(getTransactions).post(createTransaction);
 router.route('/:id').put(updateTransaction).delete(deleteTransaction);
 

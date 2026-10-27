@@ -222,6 +222,7 @@ const getMemberSummary = async (req, res, next) => {
         deductFromDepositDate: t.deductFromDepositDate || t.sourceDepositDate,
         remainingBalanceAfterDeduction,
         extraFee: extra,
+        paymentMethod: t.paymentMethod || '',
         note: t.note,
         villageName: t.villageName,
       };

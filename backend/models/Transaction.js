@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { PAYMENT_METHODS, DEFAULT_PAYMENT_METHOD } = require('../utils/transactionConstants');
 
 const TransactionSchema = new mongoose.Schema(
   {
@@ -59,6 +60,15 @@ const TransactionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: [0, 'Extra fee cannot be negative'],
+    },
+    paymentMethod: {
+      type: String,
+      enum: {
+        values: PAYMENT_METHODS,
+        message: `Payment method must be one of: ${PAYMENT_METHODS.join(', ')}`,
+      },
+      default: DEFAULT_PAYMENT_METHOD,
+      trim: true,
     },
     note: {
       type: String,

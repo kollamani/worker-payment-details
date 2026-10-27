@@ -4,6 +4,11 @@ const mongoose = require('mongoose');
 const { rejectNestedValues } = require('../middleware/sanitize');
 const { exactMatchRegex } = require('../utils/regex');
 const {
+  PAYMENT_METHODS,
+  DEFAULT_PAYMENT_METHOD,
+  normalizePaymentMethod,
+} = require('../utils/transactionConstants');
+const {
   getOriginalEnteredAmount,
   getEffectiveDepositBalance,
   getRemainingDepositBalance,
@@ -135,6 +140,14 @@ const createTransaction = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Extra fee must be zero or a positive number' });
     }
 
+    const paymentMethod = normalizePaymentMethod(req.body.paymentMethod);
+    if (paymentMethod === null) {
+      return res.status(400).json({
+        success: false,
+        message: `paymentMethod must be one of: ${PAYMENT_METHODS.join(', ')}`,
+      });
+    }
+
     let createdTransaction;
     await session.withTransaction(async () => {
       const memberExists = await Member.findOne(buildMemberQuery(req, { _id: member })).session(session);
@@ -152,6 +165,7 @@ const createTransaction = async (req, res, next) => {
         type,
         amount: amountValue,
         extraFee: feeValue,
+        paymentMethod: paymentMethod || DEFAULT_PAYMENT_METHOD,
         note: note || '',
         createdBy: req.admin._id,
       };
@@ -450,6 +464,17 @@ const updateTransaction = async (req, res, next) => {
       transaction.extraFee = feeValue;
     }
 
+    if (req.body.paymentMethod !== undefined) {
+      const paymentMethod = normalizePaymentMethod(req.body.paymentMethod);
+      if (!paymentMethod) {
+        return res.status(400).json({
+          success: false,
+          message: `paymentMethod must be one of: ${PAYMENT_METHODS.join(', ')}`,
+        });
+      }
+      transaction.paymentMethod = paymentMethod;
+    }
+
     if (date !== undefined && date !== null && String(date).trim() !== '') {
       // Same canonicalization + guards as the create flow so edits can never
       // persist a malformed or future-dated transaction.
@@ -527,7 +552,127 @@ const deleteAllUserTransactions = async (req, res, next) => {
   }
 };
 
-// @route DELETE|POST /api/transactions/filtered-delete
+// Deletes a caller-selected set of transactions in one round trip.
+//
+// Body (preferred) or query string:
+//   { ids: ['<transactionId>', ...], memberId?: '<memberId>' }
+//
+// Security contract:
+//   - every id must be a valid ObjectId (otherwise 400),
+//   - at most BULK_DELETE_MAX_IDS ids per request (otherwise 400),
+//   - the delete is always scoped to `createdBy: req.admin._id`, so ids that
+//     belong to another admin are ignored rather than deleted,
+//   - `memberId` (or its `workerId` alias) additionally scopes the delete to a
+//     single worker/member when the request originates from that worker's view.
+const BULK_DELETE_MAX_IDS = 500;
+
+const readBulkIds = (source = {}) => {
+  const raw = source.ids ?? source.transactionIds;
+  if (raw === undefined || raw === null) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') return raw.split(',');
+  return null;
+};
+
+// @route DELETE /api/transactions/bulk
+const deleteTransactionsBulk = async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const query = req.query || {};
+
+    // The `ids` collection is the one nested value we expect. Everything else
+    // must stay scalar so an injected operator ({ $ne: ... }) can never widen
+    // the filter.
+    for (const [source, label] of [
+      [body, 'body'],
+      [query, 'query'],
+    ]) {
+      const rest = { ...source };
+      delete rest.ids;
+      delete rest.transactionIds;
+      rejectNestedValues(rest, label);
+    }
+
+    const bodyIds = readBulkIds(body);
+    const queryIds = readBulkIds(query);
+    const rawIds =
+      bodyIds === null
+        ? null
+        : bodyIds.length > 0
+          ? bodyIds
+          : queryIds === null
+            ? null
+            : queryIds;
+    if (!Array.isArray(rawIds)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ids must be an array of transaction ids or a comma-separated string',
+      });
+    }
+
+    const ids = [];
+    const seen = new Set();
+    for (const value of rawIds) {
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        return res.status(400).json({
+          success: false,
+          message: 'Each transaction id must be a simple string value',
+        });
+      }
+      const id = String(value).trim();
+      if (!id) continue;
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, message: `Invalid transaction id: ${id}` });
+      }
+      if (seen.has(id)) continue;
+      seen.add(id);
+      ids.push(id);
+    }
+
+    if (ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'ids must contain at least one transaction id',
+      });
+    }
+    if (ids.length > BULK_DELETE_MAX_IDS) {
+      return res.status(400).json({
+        success: false,
+        message: `A maximum of ${BULK_DELETE_MAX_IDS} transactions can be deleted at once`,
+      });
+    }
+
+    const memberIdRaw = body.memberId ?? query.memberId ?? body.workerId ?? query.workerId;
+    let memberId;
+    if (memberIdRaw !== undefined && memberIdRaw !== null && String(memberIdRaw).trim() !== '') {
+      memberId = String(memberIdRaw).trim();
+      if (!mongoose.Types.ObjectId.isValid(memberId)) {
+        return res.status(400).json({ success: false, message: 'Invalid memberId' });
+      }
+    }
+
+    const filter = { _id: { $in: ids } };
+    if (memberId) filter.member = memberId;
+
+    const result = await Transaction.deleteMany(buildTransactionQuery(req, filter));
+    const deletedCount = Number(result.deletedCount || 0);
+
+    res.status(200).json({
+      success: true,
+      requestedCount: ids.length,
+      count: deletedCount,
+      deletedCount,
+      skippedCount: ids.length - deletedCount,
+      message: deletedCount > 0
+        ? `${deletedCount} transaction${deletedCount === 1 ? '' : 's'} deleted successfully.`
+        : 'No matching transactions were found for this account.',
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @route DELETE /api/transactions/filtered-delete
 // Danger Zone bulk delete. Deletes every transaction that matches the
 // supplied filter criteria. Filters are accepted from the query string or a
 // JSON body: startDate, endDate, memberId, workerId, worker (name), village,
@@ -744,6 +889,7 @@ module.exports = {
   updateTransaction,
   deleteTransaction,
   deleteAllUserTransactions,
+  deleteTransactionsBulk,
   deleteTransactionsByDateRange,
   getLedgerGrid,
 };
