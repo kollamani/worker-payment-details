@@ -65,6 +65,16 @@ export default {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
+        // Bottom sheet (mobile nav drawer): content slides up from the
+        // screen edge, backdrop fades — iOS action-sheet style.
+        'sheet-up': {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
+        },
+        'sheet-fade': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
         // Primary-action rune glow: a slow breathing backlight on the royal-blue
         // "Add Task" button (subtle sparkle, never distracting).
         'rune-glow': {
@@ -79,6 +89,8 @@ export default {
         'toast-timer': 'toast-timer 3s linear forwards',
         'modal-pop': 'modal-pop 0.24s cubic-bezier(0.16, 1, 0.3, 1) both',
         'modal-backdrop': 'modal-backdrop 0.2s ease-out both',
+        'sheet-up': 'sheet-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both',
+        'sheet-fade': 'sheet-fade 0.2s ease-out both',
       },
     },
   },

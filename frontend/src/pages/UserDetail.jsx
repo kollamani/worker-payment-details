@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
   PlusCircle,
   Loader2,
   Inbox,
+  Calculator,
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import MetricCard from '../components/MetricCard';
@@ -66,6 +67,76 @@ const StatusPill = ({ transaction }) => {
     </span>
   );
 };
+
+const SelectionSummaryBar = ({
+  selectedCount,
+  depositCount,
+  withdrawalCount,
+  halfSubtotal,
+  feeSubtotal,
+  grandTotal,
+  formatMoney,
+  onClear,
+}) => (
+  <div
+    role="status"
+    aria-live="polite"
+    className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-4 sm:pb-5"
+  >
+    <div className="pointer-events-auto w-full max-w-7xl animate-fade-in overflow-hidden rounded-2xl border border-emerald-200 bg-white/95 shadow-xl shadow-emerald-900/10 backdrop-blur dark:border-emerald-800 dark:bg-slate-900/95">
+      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-emerald-950">
+            <Calculator size={20} aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+              Selected: {selectedCount} item{selectedCount === 1 ? '' : 's'}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {depositCount} deposit{depositCount === 1 ? '' : 's'} · {withdrawalCount} withdrawal
+              {withdrawalCount === 1 ? '' : 's'} · 50% of deposits + full extra fees
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2">
+          <div className="text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              Half-Amount Subtotal
+            </p>
+            <p className="font-mono text-sm font-semibold tabular-nums text-indigo-700 dark:text-indigo-300">
+              {formatMoney(halfSubtotal)}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              Fee Subtotal
+            </p>
+            <p className="font-mono text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-300">
+              {formatMoney(feeSubtotal)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-right dark:border-emerald-800 dark:bg-emerald-950/60">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+              Final Calculated Total
+            </p>
+            <p className="font-mono text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+              {formatMoney(grandTotal)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 py-2 text-xs font-medium text-ink-soft transition-colors hover:bg-subtle hover:text-ink"
+          >
+            <X size={14} aria-hidden="true" /> Clear Selection
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 const TransactionHistoryTables = ({
   deposits,
@@ -672,6 +743,38 @@ const UserDetail = () => {
     selectedTransactionSet.has(transactionId)
   );
 
+  /* ── dynamic selection calculation ──
+     Per selected item: deposits contribute 50% of the entered amount,
+     withdrawals contribute the full amount; the extra fee always counts
+     in full. Final total = Σ (half/contribution + extraFee). */
+  const selectionBreakdown = useMemo(() => {
+    const selectedSet = new Set(selectedTransactionIds);
+    return (filteredTimeline || []).reduce(
+      (totals, transaction) => {
+        if (!selectedSet.has(String(transaction.id || transaction._id))) return totals;
+
+        const isDeposit = String(transaction.type).toLowerCase() === 'deposit';
+        const rawAmount = Number(transaction.originalEnteredAmount ?? transaction.amount ?? 0);
+        const halfAmount = isDeposit
+          ? Number(transaction.calculatedAmount ?? transaction.effectiveDepositBalance ?? rawAmount * 0.5)
+          : rawAmount;
+        const fee = Number(transaction.extraFee || 0);
+
+        totals.halfSubtotal += halfAmount;
+        totals.feeSubtotal += fee;
+        if (isDeposit) totals.depositCount += 1;
+        else totals.withdrawalCount += 1;
+        return totals;
+      },
+      { halfSubtotal: 0, feeSubtotal: 0, depositCount: 0, withdrawalCount: 0 }
+    );
+  }, [filteredTimeline, selectedTransactionIds]);
+
+  const selectionGrandTotal = useMemo(
+    () => selectionBreakdown.halfSubtotal + selectionBreakdown.feeSubtotal,
+    [selectionBreakdown]
+  );
+
   // Changing the date filter or refreshing after a delete can hide/prune rows.
   // Keep the selection limited to rows that still exist so the action bar never
   // counts (or deletes) a stale id.
@@ -688,7 +791,9 @@ const UserDetail = () => {
   return (
     <div className="min-h-screen bg-canvas">
       <Navbar />
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main
+        className={`mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 ${selectedCount > 0 ? 'pb-32' : ''}`}
+      >
         <Link to="/users" className="worker-nav-link mb-4 flex w-fit items-center gap-1 text-sm text-brand-700 dark:text-brand-400">
           <ArrowLeft size={16} /> Back to user directory
         </Link>
@@ -900,6 +1005,19 @@ const UserDetail = () => {
             )}
           </div>
         ) : null}
+
+        {selectedCount > 0 && !loading && (
+          <SelectionSummaryBar
+            selectedCount={selectedCount}
+            depositCount={selectionBreakdown.depositCount}
+            withdrawalCount={selectionBreakdown.withdrawalCount}
+            halfSubtotal={selectionBreakdown.halfSubtotal}
+            feeSubtotal={selectionBreakdown.feeSubtotal}
+            grandTotal={selectionGrandTotal}
+            formatMoney={formatMoney}
+            onClear={clearSelection}
+          />
+        )}
 
         <ConfirmModal
           open={!!transactionToDelete}

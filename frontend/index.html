@@ -2,8 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover enables env(safe-area-inset-*) on notched iPhones
+         (Dynamic Island / Home Indicator); interactive-widget keeps Chrome on
+         Android from pushing the layout when the keyboard opens. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <meta name="theme-color" content="#f8fafc" />
+    <!-- iOS PWA: run full-screen from the home screen with a translucent
+         status bar; the safe-area paddings in CSS keep content clear of it. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Ledger" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- Inter — crisp SaaS typography. system-ui fallback stack keeps the UI
          readable offline (font-family is set in src/index.css). -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

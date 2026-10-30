@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Wallet, UserPlus } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Wallet, UserPlus, Loader2 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
@@ -8,6 +8,8 @@ import ThemeToggle from '../components/ThemeToggle';
 const Signup = () => {
   const { signup } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || '/dashboard';
   const [form, setForm] = useState({ username: '', password: '', name: '', inviteCode: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,6 +37,9 @@ const Signup = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (loading) return; // guard against double-submit taps
+
     setError('');
 
     if (signupLocked) {
@@ -53,8 +58,10 @@ const Signup = () => {
 
     setLoading(true);
     try {
-      await signup(form.username, form.password, form.name, form.inviteCode.trim());
-      navigate('/dashboard');
+      // Account creation always yields a persistent session (remember me).
+      await signup(form.username, form.password, form.name, form.inviteCode.trim(), true);
+      // Return to the route the user was originally heading for.
+      navigate(from, { replace: true });
     } catch (err) {
       const message = err.response?.data?.message || 'Signup failed';
       if (message.includes('Maximum user limit')) {
@@ -67,7 +74,7 @@ const Signup = () => {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 to-white px-3 py-6 dark:from-slate-950 dark:to-slate-900 sm:px-4 sm:py-8">
+    <div className="relative flex min-h-dvh items-center justify-center bg-gradient-to-br from-brand-50 to-white px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(6rem+env(safe-area-inset-top))] dark:from-slate-950 dark:to-slate-900 sm:px-4 sm:pt-24">
       {/* Theme switch is available before sign-up too, so the screen follows the
           persisted light/dark/system preference on first visit. */}
       <div className="absolute right-4 top-4">
@@ -140,9 +147,18 @@ const Signup = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:opacity-60"
+              aria-busy={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3 text-base font-semibold text-white shadow-md shadow-brand-600/25 transition-colors duration-150 hover:bg-brand-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
             >
-              <UserPlus size={16} /> {loading ? 'Creating account...' : 'Sign Up'}
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" aria-hidden="true" /> Creating account…
+                </>
+              ) : (
+                <>
+                  <UserPlus size={18} aria-hidden="true" /> Sign Up
+                </>
+              )}
             </button>
           </form>
         )}

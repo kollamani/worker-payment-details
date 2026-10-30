@@ -77,13 +77,19 @@ const LedgerTable = ({
         </p>
       </div>
 
-      <div className="max-h-[70vh] overflow-x-auto overflow-y-auto">
+      {/* Momentum scrolling with contained overscroll (iOS): the sheet drags
+          sideways without rubber-banding the whole page. Height uses dvh so
+          the iOS URL bar showing/hiding never clips the table. */}
+      <div className="ios-scroll max-h-[70dvh] min-h-[3.5rem] overflow-x-auto overflow-y-auto">
         <table className="min-w-full table-fixed border-collapse text-sm">
           <thead className="sticky top-0 z-10 shadow-sm">
             <tr className="bg-subtle/90 text-[11px] uppercase tracking-[0.12em] text-ink-soft">
-              <th className="min-w-[56px] border-b border-line px-4 py-3.5 text-center font-bold">S.No</th>
+              {/* S.No — frozen column 1 (sticky in both directions). */}
+              <th className="ledger-sticky-col ledger-sticky-corner min-w-[56px] border-b border-line px-4 py-3.5 text-center font-bold">S.No</th>
               <th className="min-w-[64px] border-b border-line px-4 py-3.5 text-center font-bold">J.No</th>
-              <th className="min-w-[180px] border-b border-line px-4 py-3.5 text-left font-bold">Worker Name</th>
+              {/* Worker Name — frozen column 2: stays pinned while the date
+                  grid scrolls sideways on phones. */}
+              <th className="ledger-sticky-col-2 min-w-[180px] border-b border-line px-4 py-3.5 text-left font-bold">Worker Name</th>
               <th className="min-w-[120px] border-b border-line px-4 py-3.5 text-left font-bold">Village</th>
               <th className="min-w-[140px] border-b border-line px-4 py-3.5 text-left font-bold">Admin</th>
               {dates.map((d) => (
@@ -107,13 +113,15 @@ const LedgerTable = ({
                   idx % 2 === 1 ? 'bg-subtle/50' : 'bg-surface'
                 }`}
               >
-                <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle tabular-nums text-ink-muted">
+                {/* S.No — frozen column 1. */}
+                <td className="ledger-sticky-col whitespace-nowrap px-4 py-3.5 text-center align-middle tabular-nums text-ink-muted">
                   {row.sNo || <span className="text-ink-faint">—</span>}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle tabular-nums text-ink-muted">
                   {row.jNo || <span className="text-ink-faint">—</span>}
                 </td>
-                <td className="px-4 py-3.5 text-left align-middle">
+                {/* Worker Name — frozen column 2. */}
+                <td className="ledger-sticky-col-2 px-4 py-3.5 text-left align-middle">
                   <Link
                     to={`/users/${row.memberId}`}
                     className="worker-nav-link cursor-pointer font-semibold text-brand-700 dark:text-brand-400"
@@ -165,7 +173,7 @@ const LedgerTable = ({
                 <td className="whitespace-nowrap px-4 py-3.5 text-center align-middle">
                   <Link
                     to={`/users/${row.memberId}`}
-                    className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-semibold text-brand-700 no-underline transition-colors hover:bg-brand-100 hover:no-underline dark:border-brand-900 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/50"
+                    className="inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 no-underline transition-colors active:bg-brand-200 hover:bg-brand-100 hover:no-underline dark:border-brand-900 dark:bg-brand-900/30 dark:text-brand-300 dark:active:bg-brand-900/60 dark:hover:bg-brand-900/50"
                   >
                     View Worker
                     <ChevronRight size={13} aria-hidden="true" />

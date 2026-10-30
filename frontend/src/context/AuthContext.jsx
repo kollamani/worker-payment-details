@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAutoLogout } from '../hooks/useAutoLogout';
 import IdleWarningModal from '../components/IdleWarningModal';
+import { clearTokens, getAdmin, getToken, setAdmin, setTokens } from '../utils/tokenStore';
 
 // Set when the server rejects the token (expired, revoked, forged). The next
 // screen reads it and shows a matching banner; user-initiated logouts and
@@ -20,59 +21,25 @@ export const markServerSessionExpired = () => {
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  // Safe storage access: localStorage does not exist outside the browser
-  // (e.g. an SSR/isolated render), so guard every touch to avoid a hard crash.
-  const safeStorage = {
-    get: (key) => {
-      try {
-        return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-      } catch {
-        return null;
-      }
-    },
-    set: (key, value) => {
-      try {
-        if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
-      } catch {
-        /* storage full / disabled — non-fatal */
-      }
-    },
-    remove: (key) => {
-      try {
-        if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
-      } catch {
-        /* non-fatal */
-      }
-    },
-  };
-
-  const [admin, setAdmin] = useState(() => {
-    const stored = safeStorage.get('ledger_admin');
-    if (!stored) return null;
-    try {
-      return JSON.parse(stored);
-    } catch {
-      // Tampered/corrupt JSON must not crash the app on boot - drop it.
-      safeStorage.remove('ledger_admin');
-      return null;
-    }
-  });
-  const [token, setToken] = useState(() => safeStorage.get('ledger_token'));
+  const [admin, setAdmin] = useState(() => getAdmin());
+  const [token, setToken] = useState(() => getToken());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const init = async () => {
-      const storedToken = localStorage.getItem('ledger_token');
+      // Remember-me aware: reads localStorage first, then sessionStorage.
+      const storedToken = getToken();
       if (storedToken) {
         try {
           const res = await api.get('/auth/me');
           setAdmin(res.data.admin);
-          localStorage.setItem('ledger_admin', JSON.stringify(res.data.admin));
         } catch (err) {
-          localStorage.removeItem('ledger_token');
-          localStorage.removeItem('ledger_admin');
-          setToken(null);
-          setAdmin(null);
+          // 401 already triggers the interceptor's cleanup + redirect; for
+          // any other failure (e.g. network down) keep the stored profile so
+          // the UI still renders and the next request retries silently.
+          if (err.response?.status !== 401) {
+            setAdmin(getAdmin());
+          }
         }
       }
       setLoading(false);
@@ -81,27 +48,37 @@ export const AuthProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = async (username, password) => {
-    const res = await api.post('/auth/login', { username, password });
-    localStorage.setItem('ledger_token', res.data.token);
-    localStorage.setItem('ledger_admin', JSON.stringify(res.data.admin));
-    setToken(res.data.token);
-    setAdmin(res.data.admin);
-    return res.data;
+  const persistSession = useCallback((data, remember) => {
+    setTokens({ token: data.token, admin: data.admin, remember });
+    setToken(data.token);
+    setAdmin(data.admin);
+    return data;
+  }, []);
+
+  const login = async (username, password, remember = true) => {
+    const res = await api.post('/auth/login', {
+      username: String(username ?? '').trim(),
+      password,
+      remember,
+    });
+    return persistSession(res.data, remember);
   };
 
-  const signup = async (username, password, name, inviteCode) => {
-    const res = await api.post('/auth/signup', { username, password, name, inviteCode });
-    localStorage.setItem('ledger_token', res.data.token);
-    localStorage.setItem('ledger_admin', JSON.stringify(res.data.admin));
-    setToken(res.data.token);
-    setAdmin(res.data.admin);
-    return res.data;
+  const signup = async (username, password, name, inviteCode, remember = true) => {
+    const res = await api.post('/auth/signup', {
+      username: String(username ?? '').trim(),
+      password,
+      name,
+      inviteCode,
+      remember,
+    });
+    return persistSession(res.data, remember);
   };
 
   const logout = useCallback((reason = '') => {
-    localStorage.removeItem('ledger_token');
-    localStorage.removeItem('ledger_admin');
+    // Clears localStorage AND sessionStorage so no stale token can survive a
+    // remember-me compartment switch.
+    clearTokens();
     setToken(null);
     setAdmin(null);
     // The Login screen shows a matching banner for 'idle' / 'expired'; manual

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { markServerSessionExpired } from '../context/AuthContext';
+import { clearTokens, getToken } from '../utils/tokenStore';
 
 const configuredApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').trim().replace(/\/+$/, '');
 const apiBaseUrl = configuredApiUrl.endsWith('/api') ? configuredApiUrl : `${configuredApiUrl}/api`;
@@ -24,13 +25,12 @@ const isTokenExpired = (token) => {
 };
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('ledger_token');
+  const token = getToken(); // remember-me aware (localStorage → sessionStorage)
   if (token && isTokenExpired(token)) {
     // Expired token: drop it now so it is never sent (or usable by any
-    // script reading localStorage); the resulting 401 below triggers the
+    // script reading storage); the resulting 401 below triggers the
     // standard redirect to /login.
-    localStorage.removeItem('ledger_token');
-    localStorage.removeItem('ledger_admin');
+    clearTokens();
     return config;
   }
   if (token) {
@@ -43,8 +43,7 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response && err.response.status === 401) {
-      localStorage.removeItem('ledger_token');
-      localStorage.removeItem('ledger_admin');
+      clearTokens();
       if (!err.config?.skipAuthRedirect) {
         // Tag the logout as server-driven so Login can show the matching
         // banner instead of the inactivity one. No-op on silent background

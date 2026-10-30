@@ -67,7 +67,7 @@ const ThemeToggle = ({ className = '', showLabels = false, variant = 'panel' }) 
             onClick={() => setPreference(value)}
             onKeyDown={(event) => handleKeyDown(event, index)}
             className={`inline-flex items-center justify-center gap-1.5 rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:ring-offset-surface dark:focus-visible:ring-brand-400 dark:focus-visible:ring-offset-surface ${
-              showLabels ? 'px-2.5 py-1.5 text-xs font-semibold' : 'h-7 w-7'
+              showLabels ? 'px-2.5 py-1.5 text-xs font-semibold' : 'tap-target h-7 w-7'
             } ${
               active
                 ? 'bg-brand-600 text-white shadow-sm'

@@ -61,6 +61,22 @@ const Navbar = () => {
     };
   }, [workspaceOpen]);
 
+  // While the mobile sheet is open: freeze the page beneath it (iOS momentum
+  // scrolling would otherwise drag both layers) and close on Escape.
+  useEffect(() => {
+    if (!mobileOpen) return undefined;
+    const { overflow } = document.body.style;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setMobileOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = overflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mobileOpen]);
+
   const handleLogout = () => {
     setMobileOpen(false);
     setWorkspaceOpen(false);
@@ -93,7 +109,8 @@ const Navbar = () => {
   const workspaceInitial = workspaceIdentity.trim().charAt(0).toUpperCase() || 'W';
 
   return (
-    <nav className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/80 backdrop-blur-md backdrop-saturate-150 dark:border-slate-800 dark:bg-slate-900/80">
+    <>
+      <nav className="sticky top-0 z-30 pt-safe border-b border-slate-200/80 bg-white/80 backdrop-blur-md backdrop-saturate-150 dark:border-slate-800 dark:bg-slate-900/80">
       <div className="mx-auto flex h-16 max-w-[90rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         {/* ── Left: logo + brand ─────────────────────────────────────────── */}
         <NavLink
@@ -199,11 +216,12 @@ const Navbar = () => {
             <LogOut size={15} aria-hidden="true" /> Logout
           </button>
 
-          {/* Hamburger — everything below xl folds into this panel. */}
+          {/* Hamburger — everything below xl folds into this panel.
+              44px tap target for comfortable touch use. */}
           <button
             type="button"
             onClick={() => setMobileOpen((open) => !open)}
-            className={`inline-flex items-center justify-center rounded-full border border-line bg-surface/70 p-2 text-ink-soft transition-colors duration-150 hover:bg-subtle hover:text-ink xl:hidden ${focusRing}`}
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface/70 p-2 text-ink-soft transition-colors duration-150 hover:bg-subtle hover:text-ink active:bg-subtle active:scale-95 xl:hidden ${focusRing}`}
             aria-expanded={mobileOpen}
             aria-controls="mobile-navigation"
             aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
@@ -211,13 +229,34 @@ const Navbar = () => {
             {mobileOpen ? <X size={21} aria-hidden="true" /> : <Menu size={21} aria-hidden="true" />}
           </button>
         </div>
+      </div>
+    </nav>
 
-        {/* ── Slide-down panel: links + controls for < xl ────────────────── */}
-        {mobileOpen && (
-          <div
-            id="mobile-navigation"
-            className="max-h-[calc(100vh-4rem)] overflow-y-auto border-t border-line py-3 xl:hidden"
-          >
+    {/* ── Bottom sheet drawer: links + controls for < xl ───────────────────
+        iOS action-sheet pattern: dimmed backdrop that taps closed, panel
+        slides up from the bottom edge, respects the Home Indicator via
+        safe-area padding, and rubber-bands internally via overscroll
+        containment. Rendered as a sibling of <nav> so the bar's
+        backdrop-filter/backdrop-blur can never clip or re-position this
+        fixed overlay (WebKit turns filtered ancestors into containing
+        blocks for fixed children). */}
+    {mobileOpen && (
+      <div className="fixed inset-0 z-40 xl:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
+        <div
+          className="animate-sheet-fade fixed inset-0 top-16 bg-slate-900/45 backdrop-blur-[2px]"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+        <div
+          id="mobile-navigation"
+          className="ios-scroll animate-sheet-up fixed bottom-0 left-0 right-0 max-h-[calc(100dvh-4.5rem)] overflow-y-auto rounded-t-3xl border-t border-line bg-surface shadow-2xl"
+        >
+          {/* Grabber — standard sheet affordance. */}
+          <div className="flex justify-center pt-2.5" aria-hidden="true">
+            <span className="h-1.5 w-10 rounded-full bg-line-strong" />
+          </div>
+
+          <div className="px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
             {/* Theme row — only while the top-bar toggle is hidden (< sm). */}
             <div className="mb-3 flex items-center justify-between gap-3 sm:hidden">
               <span className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Theme</span>
@@ -244,23 +283,36 @@ const Navbar = () => {
 
             <div className="grid gap-1.5">
               {navItems.map(({ to, label, icon: Icon }) => (
-                <NavLink key={to} to={to} onClick={() => setMobileOpen(false)} className={linkClass}>
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={() => setMobileOpen(false)}
+                  className={({ isActive }) =>
+                    `flex min-h-[44px] items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors duration-150 active:bg-subtle ${focusRing} ${
+                      isActive
+                        ? 'bg-brand-600 text-white shadow-sm'
+                        : 'text-ink-soft hover:bg-subtle hover:text-ink'
+                    }`
+                  }
+                >
                   <Icon size={17} aria-hidden="true" /> <span>{label}</span>
                 </NavLink>
               ))}
               <button
                 type="button"
                 onClick={handleLogout}
-                className={`flex items-center gap-2 rounded-full border border-rose-300/60 bg-rose-50/60 px-3.5 py-2 text-left text-sm font-medium text-rose-600 transition-colors duration-150 hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:bg-rose-900/60 ${focusRing}`}
+                className={`flex min-h-[44px] items-center gap-2 rounded-xl border border-rose-300/60 bg-rose-50/60 px-3.5 py-2.5 text-left text-sm font-medium text-rose-600 transition-colors duration-150 hover:bg-rose-100 active:bg-rose-200 dark:border-rose-500/40 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:bg-rose-900/60 dark:active:bg-rose-900 ${focusRing}`}
               >
                 <LogOut size={17} aria-hidden="true" /> Logout
               </button>
             </div>
           </div>
-        )}
+        </div>
       </div>
-    </nav>
+    )}
+    </>
   );
 };
 
 export default Navbar;
+

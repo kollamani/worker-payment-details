@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <!-- Brand mark: wallet glyph on the royal-blue gradient tile. Replace with
+       a full branded art asset whenever one is produced. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6" />
+      <stop offset="1" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="36" fill="url(#g)" />
+  <g stroke="#ffffff" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M40 62h100v64a10 10 0 0 1-10 10H50a10 10 0 0 1-10-10V62z" />
+    <path d="M40 62a10 10 0 0 1 10-10h80a10 10 0 0 1 10 10" />
+    <path d="M114 102h26" />
+  </g>
+  <circle cx="122" cy="102" r="7" fill="#ffffff" />
+</svg>
